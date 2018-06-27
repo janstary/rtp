@@ -1,0 +1,198 @@
+#!/bin/sh
+#
+# Copyright (c) 2014-2017 Ingo Schwarze <schwarze@openbsd.org>
+# Copyright (c) 2018 Jan Stary <hans@stare.cz>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+set -e
+
+[ -w config.log ] && mv config.log config.log.old
+[ -w config.h   ] && mv config.h config.h.old
+
+# Output file descriptor usage:
+# 1 (stdout): config.h, Makefile.local
+# 2 (stderr): original stderr, usually to the console
+# 3: config.log
+
+exec 3> config.log
+echo "config.log: writing..."
+
+# --- default settings -------------------------------------------------
+
+SOURCEDIR=`dirname "$0"`
+
+CC=`printf "all:\\n\\t@echo \\\$(CC)\\n" | env -i make -sf -`
+CFLAGS="-g -W -Wall -Wstrict-prototypes -Wwrite-strings"
+CFLAGS="${CFLAGS} -Wno-unused-parameter"
+LDFLAGS=
+LDADD=
+
+HAVE_ERR=
+HAVE_PROGNAME=
+HAVE_STRTONUM=
+
+HAVE_LNSL=
+HAVE_LSOCKET=
+
+INSTALL="install"
+PREFIX="/usr/local"
+BINDIR=
+MANDIR=
+
+# --- manual settings from configure.local -----------------------------
+
+if [ -r ./configure.local ]; then
+	echo "configure.local: reading..." 1>&2
+	echo "configure.local: reading..." 1>&3
+	cat ./configure.local 1>&3
+	. ./configure.local
+else
+	echo "configure.local: no (fully automatic configuration)" 1>&2
+	echo "configure.local: no (fully automatic configuration)" 1>&3
+fi
+echo 1>&3
+
+# --- tests for config.h  ----------------------------------------------
+
+COMP="${CC} ${CFLAGS} -Wno-unused -Werror"
+
+# Check whether this HAVE_ setting is manually overridden.
+# If yes, use the override, if no, do not decide anything yet.
+# Arguments: lower-case test name, manual value
+ismanual() {
+	[ -z "${3}" ] && return 1
+	echo "${1}: manual (HAVE_${2}=${3})" 1>&2
+	echo "${1}: manual (HAVE_${2}=${3})" 1>&3
+	echo 1>&3
+	return 0
+}
+
+# Run a single autoconfiguration test.
+# In case of success, enable the feature.
+# In case of failure, do not decide anything yet.
+# Arguments: lower-case test name, upper-case test name, additional CFLAGS
+singletest() {
+	cat 1>&3 << __HEREDOC__
+${1}${3}: testing...
+${COMP} -o have-${1} have-${1}.c ${3}
+__HEREDOC__
+
+	if ${COMP} -o "have-${1}" "${SOURCEDIR}/have-${1}.c" ${3} 1>&3 2>&3
+	then
+		echo "${1}${3}: ${CC} succeeded" 1>&3
+	else
+		echo "${1}${3}: ${CC} failed with $?" 1>&3
+		echo 1>&3
+		return 1
+	fi
+
+	if ./have-${1} 1>&3 2>&3; then
+		echo "${1}${3}: yes" 1>&2
+		echo "${1}${3}: yes" 1>&3
+		echo 1>&3
+		eval HAVE_${2}=1
+		rm "have-${1}"
+		return 0
+	else
+		echo "${1}${3}: execution failed with $?" 1>&3
+		echo 1>&3
+		rm "have-${1}"
+		return 1
+	fi
+}
+
+# Run a complete autoconfiguration test, including the check for
+# a manual override and disabling the feature on failure.
+# Arguments: lower case name, upper case name, additional CFLAGS
+runtest() {
+	eval _manual=\${HAVE_${2}}
+	ismanual "${1}" "${2}" "${_manual}" && return 0
+	singletest "${1}" "${2}" "${3}" && return 0
+	echo "${1}${3}: no" 1>&2
+	eval HAVE_${2}=0
+	return 1
+}
+
+# --- run the tests ---
+
+# functions
+runtest err		ERR		|| true
+runtest progname	PROGNAME	|| true
+runtest strtonum	STRTONUM	|| true
+
+# extra libs needed
+runtest gethostbyname	LNSL	-lnsl	|| true
+runtest socket		LSOCKET	-lsocket|| true
+
+# --- write config.h ---
+
+exec > config.h
+
+cat << __HEREDOC__
+#ifdef __cplusplus
+#error "Do not use C++"
+#endif
+
+__HEREDOC__
+
+cat << __HEREDOC__
+#define HAVE_ERR ${HAVE_ERR}
+#define HAVE_PROGNAME ${HAVE_PROGNAME}
+#define HAVE_STRTONUM ${HAVE_STRTONUM}
+
+__HEREDOC__
+
+if [ ${HAVE_ERR} -eq 0 ]; then
+	echo "extern void err(int, const char *, ...);"
+	echo "extern void errx(int, const char *, ...);"
+	echo "extern void warn(const char *, ...);"
+	echo "extern void warnx(const char *, ...);"
+fi
+
+if [ ${HAVE_PROGNAME} -eq 0 ]; then
+	echo "extern const char* getprogname(void);"
+	echo "extern void        setprogname(const char *);"
+fi
+
+[ ${HAVE_STRTONUM} -eq 0 ] && \
+	echo "extern long long strtonum(const char *, long long, long long, const char **);"
+
+echo "config.h: written" 1>&2
+echo "config.h: written" 1>&3
+
+# --- tests for Makefile.local -----------------------------------------
+
+exec > Makefile.local
+
+[ -z "${BINDIR}" ] && BINDIR="${PREFIX}/bin"
+[ -z "${MANDIR}" ] && MANDIR="${PREFIX}/man"
+
+[ ${HAVE_LNSL}    -eq 1 ] && LDADD="${LDADD} -lnsl"
+[ ${HAVE_LSOCKET} -eq 1 ] && LDADD="${LDADD} -lsocket"
+
+cat << __HEREDOC__
+CC		= ${CC}
+CFLAGS		= ${CFLAGS}
+LDFLAGS		= ${LDFLAGS}
+LDADD		= ${LDADD}
+PREFIX		= ${PREFIX}
+BINDIR		= ${BINDIR}
+MANDIR		= ${MANDIR}
+INSTALL		= ${INSTALL}
+__HEREDOC__
+
+echo "Makefile.local: written" 1>&2
+echo "Makefile.local: written" 1>&3
+
+exit 0

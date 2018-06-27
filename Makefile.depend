@@ -1,0 +1,5 @@
+rtp.o: rtp.c rtp.h config.h
+
+compat-err.o: compat-err.c
+compat-progname.o: compat-progname.c
+compat-strtonum.o: compat-strtonum.c
