@@ -20,13 +20,10 @@
 #include <sys/types.h>
 #include <stdint.h>
 
-#define DUMPHDR    "#!rtpplay1.0 "
-#define DUMPHDRLEN strlen(DUMPHDR)
-
 struct dumphdr {
 	struct timeval32 {
-		uint32_t tv_sec;
-		uint32_t tv_usec;
+		uint32_t sec;
+		uint32_t usec;
 	}		start;
 	uint32_t	source;
 	uint16_t	port;
@@ -40,8 +37,14 @@ struct dpkthdr {
 	uint32_t offset; /* usec since start */
 };
 
-ssize_t read_dumphdr	(int fd, void* buf, size_t len);
-ssize_t read_dpkthdr	(int fd, void* buf, size_t len);
-ssize_t read_dump	(int fd, void *buf, size_t len);
+#define DUMPHDR     "#!rtpplay1.0 "
+#define DUMPHDRLEN  strlen(DUMPHDR)
+#define DUMPHDRSIZE sizeof(struct dumphdr)
 
-ssize_t write_dump	(int fd, void *buf, size_t len);
+ssize_t	read_dumpline	(int fd);
+ssize_t	read_dumphdr	(int fd);
+
+ssize_t	read_dpkthdr	(int fd, void* buf, size_t len);
+ssize_t	read_dump	(int fd, void *buf, size_t len);
+
+ssize_t	write_dump	(int fd, void *buf, size_t len);

@@ -256,18 +256,11 @@ rtpopen(const char *input, int flags)
 		} else if (ifmt == NULL) {
 			ifmt = fmt ? fmt : FORMAT_DUMP;
 			if (ifmt == FORMAT_DUMP) {
-			/* read over the DUMPHDR */
-				char buf[16];
-				if ((read(fd, buf, DUMPHDRLEN) != DUMPHDRLEN)
-				||  (strncmp(buf, DUMPHDR, DUMPHDRLEN) != 0)) {
+				if (read_dumpline(fd) == -1) {
 					warnx("Invalid dump file header");
 					goto bad;
 				}
-				while (read(fd, p, 1) == 1) {
-					if (*p == '\n')
-						break;
-				}
-				if (*p != '\n') {
+				if (read_dumphdr(fd) == -1) {
 					warnx("Invalid dump file header");
 					goto bad;
 				}
