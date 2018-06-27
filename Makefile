@@ -17,8 +17,17 @@ TARBALL = rtp-$(VERSION).tar.gz
 
 BINS =	rtp
 MAN1 =	rtp.1	
-OBJS =	rtp.o dump.o
-SRCS =	rtp.c rtp.h dump.c dump.h
+
+OBJS =	rtp.o		\
+	format-dump.o	\
+	format-rtp.o
+
+SRCS =	rtp.c		\
+	rtp.h		\
+	format-dump.c	\
+	format-dump.h	\
+	format-rtp.c	\
+	format-rtp.h	\
 
 HAVE_SRCS =	have-err.c   have-progname.c   have-strtonum.c
 COMPAT_SRCS =	compat-err.c compat-progname.c compat-strtonum.c

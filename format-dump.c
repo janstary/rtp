@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <err.h>
 
-#include "dump.h"
+#include "format-dump.h"
 
 /* Read over the DUMPHDR line.
  * Check that the version is there, ignore the addr/port.
