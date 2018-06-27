@@ -52,9 +52,6 @@ clean:
 distclean: clean
 	rm -f Makefile.local config.h config.h.old config.log config.log.old
 
-test: $(BINS)
-	./rtp session.ascii
-
 install: all test
 	install -d $(BINDIR)      && install -m 0755 $(BINS) $(BINDIR)
 	install -d $(MANDIR)/man1 && install -m 0444 $(MAN1) $(MANDIR)/man1
