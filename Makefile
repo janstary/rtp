@@ -16,9 +16,9 @@ VERSION = 1.0
 TARBALL = rtp-$(VERSION).tar.gz
 
 BINS =	rtp
-OBJS =	rtp.o
 MAN1 =	rtp.1	
-SRCS =	rtp.c rtp.h
+OBJS =	rtp.o dump.o
+SRCS =	rtp.c rtp.h dump.c dump.h
 
 HAVE_SRCS =	have-err.c   have-progname.c   have-strtonum.c
 COMPAT_SRCS =	compat-err.c compat-progname.c compat-strtonum.c

@@ -1,3 +1,4 @@
+dump.o: dump.c dump.h config.h
 rtp.o: rtp.c rtp.h config.h
 
 compat-err.o: compat-err.c

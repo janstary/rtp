@@ -30,6 +30,8 @@
 #include <netdb.h>
 
 #include "rtp.h"
+#include "dump.h"
+
 #define BUFLEN 1024
 
 extern const char* __progname;
@@ -38,12 +40,10 @@ struct ifaddrs *ifaces = NULL;
 ssize_t (*reader)   (int fd, void *buf, size_t len);
 ssize_t (*writer)   (int fd, void *buf, size_t len);
 
-ssize_t read_dump   (int fd, void *buf, size_t len);
 ssize_t read_rtp    (int fd, void *buf, size_t len);
 ssize_t read_raw    (int fd, void *buf, size_t len);
 ssize_t read_ascii  (int fd, void *buf, size_t len);
 
-ssize_t write_dump  (int fd, void *buf, size_t len);
 ssize_t write_rtp   (int fd, void *buf, size_t len);
 ssize_t write_raw   (int fd, void *buf, size_t len);
 ssize_t write_ascii (int fd, void *buf, size_t len);
@@ -60,8 +60,6 @@ struct format {
 	{ NULL,		NULL,		NULL        }
 };
 
-#define DUMPHDR      "#!rtpplay1.0 "
-#define DUMPHDRLEN   strlen(DUMPHDR)
 #define FORMAT_DUMP  (&(formats[0]))
 #define FORMAT_RTP   (&(formats[1]))
 #define FORMAT_RAW   (&(formats[2]))
@@ -103,18 +101,6 @@ islocal(struct sockaddr_in *a)
 		((struct sockaddr_in*)i->ifa_addr)->sin_addr.s_addr)
 			return 1;
 	return 0;
-}
-
-ssize_t
-read_dump(int fd, void *buf, size_t len)
-{
-	return read(fd, buf, len);
-}
-
-ssize_t
-write_dump(int fd, void *buf, size_t len)
-{
-	return write(fd, buf, len);
 }
 
 ssize_t
