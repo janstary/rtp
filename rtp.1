@@ -3,7 +3,7 @@
 .\" Permission to use, copy, modify, and distribute this software for any
 .\" purpose with or without fee is hereby granted, provided that the above
 .\" copyright notice and this permission notice appear in all copies.
-.\" 
+.\"
 .\" THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
 .\" WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
 .\" MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
@@ -19,6 +19,8 @@
 .Nd debug RTP sessions
 .Sh SYNOPSIS
 .Nm
+.Op Fl i Ar format
+.Op Fl o Ar format
 .Op input
 .Op output
 .Sh DESCRIPTION
@@ -59,15 +61,50 @@ Similarly, if the
 is a remote address
 (i.e. any address not assigned to the local machine),
 .Nm
-will try to send a one-byte message first
-to let them know we are reading.
-.\"This is needed because RTP operates via UDP,
-.\"so neither side knows someone has connected
-.\"until actually seeing something arrive.
-.\" FIXME opravdu? Jak to zjistuje treba nc(1). IMHO neco posle.
+will try to send a one-byte message first to let them know we are reading.
 For other combinations of input and output,
 .Nm
 behaves in the obvious way.
+.Pp
+The stream can be read or written in
+.Cm dump ,
+.Cm rtp ,
+.Cm raw
+or
+.Cm ascii
+format.
+For regular files, the format will be guessed from the file name suffix, i.e.
+.Dq dump ,
+.Dq rtp ,
+.Dq raw
+and
+.Dq ascii ,
+respectively, with
+.Cm dump
+being the default if the format cannot be guessed from the name.
+For network connections, only
+.Cm rtp
+or
+.Cm raw
+can be used, and with a
+.Cm raw
+input, only
+.Cm raw
+output can be produced.
+The input and output format can be specified with the
+.Fl i
+and
+.Fl o
+options, respectively.
+.Pp
+The options are as follows.
+.Pp
+.Bl -tag -compact -width formatxxx
+.It Fl i Ar format
+The format of input.
+.It Fl o Ar format
+The format of output.
+.El
 .Sh EXAMPLES
 Read from a file, write to a file:
 .Dl $ rtp infile outfile

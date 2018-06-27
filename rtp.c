@@ -40,29 +40,40 @@ ssize_t (*writer)   (int fd, void *buf, size_t len);
 
 ssize_t read_dump   (int fd, void *buf, size_t len);
 ssize_t read_rtp    (int fd, void *buf, size_t len);
-ssize_t read_pay    (int fd, void *buf, size_t len);
+ssize_t read_raw    (int fd, void *buf, size_t len);
 ssize_t read_ascii  (int fd, void *buf, size_t len);
 
 ssize_t write_dump  (int fd, void *buf, size_t len);
 ssize_t write_rtp   (int fd, void *buf, size_t len);
-ssize_t write_pay   (int fd, void *buf, size_t len);
+ssize_t write_raw   (int fd, void *buf, size_t len);
 ssize_t write_ascii (int fd, void *buf, size_t len);
 
-struct name {
-	const char *suff;
+struct format {
+	const char *name;
 	ssize_t (*reader)(int fd, void *buf, size_t len);
 	ssize_t (*writer)(int fd, void *buf, size_t len);
-} names[] = {
+} formats[] = {
 	{ "dump",	read_dump,	write_dump  },
 	{ "rtp",	read_rtp,	write_rtp   },
-	{ "raw",	read_pay,	write_pay   },
-	{ "asc",	read_ascii,	write_ascii },
+	{ "raw",	read_raw,	write_raw   },
+	{ "ascii",	read_ascii,	write_ascii },
+	{ NULL,		NULL,		NULL        }
 };
 
 static void
 usage()
 {
 	fprintf(stderr, "%s [-v] [input] [output]\n", __progname);
+}
+
+struct format*
+getfmt(const char *name)
+{
+	struct format *fmt;
+	for (fmt = formats; fmt && fmt->name; fmt++)
+		if (strcmp(fmt->name, name) == 0)
+			return fmt;
+	return NULL;
 }
 
 void
@@ -109,13 +120,13 @@ write_rtp(int fd, void *buf, size_t len)
 }
 
 ssize_t
-read_pay(int fd, void *buf, size_t len)
+read_raw(int fd, void *buf, size_t len)
 {
 	return read(fd, buf, len);
 }
 
 ssize_t
-write_pay(int fd, void *buf, size_t len)
+write_raw(int fd, void *buf, size_t len)
 {
 	return write(fd, buf, len);
 }
@@ -135,21 +146,21 @@ write_ascii(int fd, void *buf, size_t len)
 /* Open and prepare the input for reading, or the output for writing.
  * Return a suitable file escriptor (FIXME: FILE*) that the reader
  * can read from and the writer can write to. Based on the type of
- * input/output (file or addr:port), set the reader and writer,
- * if not set already by options (FIXME). */
+ * input/output, set the reader and writer if not set already. */
 int
 rtpopen(const char *input, int flags)
 {
 	int e;
-	char* p;
 	int fd = -1;
 	uint32_t port;
+	char* p = NULL;
+	struct format *fmt;
 	struct addrinfo info;
-	struct addrinfo *res;
+	struct addrinfo *res = NULL;
 	struct sockaddr_in *a;
 	if (strcmp(input, "-") == 0) {
-		reader = read_dump;
-		writer = write_ascii;
+		reader = reader ? reader : read_dump;
+		writer = writer ? writer : write_ascii;
 		return (flags & O_CREAT) ? STDOUT_FILENO : STDIN_FILENO;
 	} else if ((p = strchr(input, ':'))) {
 		*p++ = '\0';
@@ -175,8 +186,18 @@ rtpopen(const char *input, int flags)
 			warn("socket");
 			goto bad;
 		}
-		reader = read_rtp;
-		writer = write_rtp;
+		reader = reader ? reader : read_rtp;
+		writer = writer ? writer : write_rtp;
+		if ((reader != read_rtp  && reader != read_raw)
+		||  (writer != write_rtp && writer != write_raw)) {
+			warnx("Only rtp and raw format supported for %s",input);
+			goto bad;
+		}
+		if (reader == read_raw && writer != write_raw) {
+			if (writer != write_rtp)
+				warnx("Using raw output with raw input");
+			writer = write_raw;
+		}
 		if (islocal(a = (struct sockaddr_in*) res->ai_addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
@@ -206,7 +227,7 @@ rtpopen(const char *input, int flags)
 				goto bad;
 			}
 			if (!(flags & O_CREAT)) {
-				/* If the remote address is an input,
+				/* If the remote address is our input,
 			 	 * send a byte there to let them know
 				 * where to write later. */
 				char b[2] = "1";
@@ -222,12 +243,18 @@ rtpopen(const char *input, int flags)
 		fd = (flags & O_CREAT)
 			? open(input, flags, 0644)
 			: open(input, flags);
-		if (fd == -1)
+		if (fd == -1) {
 			warn("%s", input);
-		reader = read_dump;
-		writer = write_ascii;
-		/* FIXME: consult the file name */
+			goto bad;
+		}
+		if ((p = strrchr(input, '.')) && (fmt = getfmt(++p))) {
+			reader = reader ? reader : fmt->reader;
+			writer = writer ? writer : fmt->writer;
+		}
+		reader = reader ? reader : read_dump;
+		writer = writer ? writer : write_ascii;
 	}
+	/* FIXME: open a dump, read over first line, etc */
 	return fd;
 bad:
 	freeaddrinfo(res);
@@ -243,16 +270,34 @@ main(int argc, char** argv)
 	int ifd = STDIN_FILENO;
 	int ofd = STDOUT_FILENO;
 	unsigned char buf[BUFLEN];
+	struct format *fmt;
 
 	reader = NULL;
 	writer = NULL;
 
-	while ((c = getopt(argc, argv, "v")) != -1) switch (c) {
+	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
+		case 'i':
+			if ((fmt = getfmt(optarg)))
+				reader = fmt->reader;
+			else {
+				warnx("unknown format: %s", optarg);
+				return -1;
+			}
+			break;
+		case 'o':
+			if ((fmt = getfmt(optarg)))
+				writer = fmt->writer;
+			else {
+				warnx("unknown format: %s", optarg);
+				return -1;
+			}
+			break;
 		case 'v':
 			break;
 		default:
 			usage();
-		return -1;
+			return -1;
+			break;
 	}
 	argc -= optind;
 	argv += optind;
