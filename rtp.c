@@ -269,29 +269,29 @@ rtpopen(const char *input, int flags)
 			ofmt = fmt ? fmt : FORMAT_ASCII;
 		} else if (ifmt == NULL) {
 			ifmt = fmt ? fmt : FORMAT_DUMP;
+			if (ifmt == FORMAT_DUMP) {
+			/* read over the DUMPHDR */
+				char buf[16];
+				if ((read(fd, buf, DUMPHDRLEN) != DUMPHDRLEN)
+				||  (strncmp(buf, DUMPHDR, DUMPHDRLEN) != 0)) {
+					warnx("Invalid dump file header");
+					goto bad;
+				}
+				while (read(fd, p, 1) == 1) {
+					if (*p == '\n')
+						break;
+				}
+				if (*p != '\n') {
+					warnx("Invalid dump file header");
+					goto bad;
+				}
+			}
 		}
 	}
-	/* special case: raw input can ony produce raw output */
+	/* raw input can ony produce raw output */
 	if (ifmt == FORMAT_RAW && ofmt != FORMAT_RAW) {
 		warnx("Using raw output with raw input");
 		ofmt = FORMAT_RAW;
-	}
-	/* special case: read over the dump file header */
-	if (ifmt == FORMAT_DUMP) {
-		char buf[16];
-		if ((read(fd, buf, DUMPHDRLEN) != DUMPHDRLEN)
-		||  (strncmp(buf, DUMPHDR, DUMPHDRLEN) != 0)) {
-			warnx("Invalid dump file header");
-			goto bad;
-		}
-		while (read(fd, p, 1) == 1) {
-			if (*p == '\n')
-				break;
-		}
-		if (*p != '\n') {
-			warnx("Invalid dump file header");
-			goto bad;
-		}
 	}
 	return fd;
 bad:
