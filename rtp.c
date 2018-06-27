@@ -60,6 +60,16 @@ struct format {
 	{ NULL,		NULL,		NULL        }
 };
 
+#define DUMPHDR      "#!rtpplay1.0 "
+#define DUMPHDRLEN   strlen(DUMPHDR)
+#define FORMAT_DUMP  (&(formats[0]))
+#define FORMAT_RTP   (&(formats[1]))
+#define FORMAT_RAW   (&(formats[2]))
+#define FORMAT_ASCII (&(formats[3]))
+
+struct format *ifmt = NULL;
+struct format *ofmt = NULL;
+
 static void
 usage()
 {
@@ -144,9 +154,9 @@ write_ascii(int fd, void *buf, size_t len)
 }
 
 /* Open and prepare the input for reading, or the output for writing.
- * Return a suitable file escriptor (FIXME: FILE*) that the reader
+ * Return a suitable file descriptor (FIXME? FILE*) that the reader
  * can read from and the writer can write to. Based on the type of
- * input/output, set the reader and writer if not set already. */
+ * input/output, set the input/output format if not set already. */
 int
 rtpopen(const char *input, int flags)
 {
@@ -154,15 +164,21 @@ rtpopen(const char *input, int flags)
 	int fd = -1;
 	uint32_t port;
 	char* p = NULL;
-	struct format *fmt;
-	struct addrinfo info;
+	struct format *fmt = NULL;
 	struct addrinfo *res = NULL;
+	struct addrinfo info;
 	struct sockaddr_in *a;
 	if (strcmp(input, "-") == 0) {
-		reader = reader ? reader : read_dump;
-		writer = writer ? writer : write_ascii;
-		return (flags & O_CREAT) ? STDOUT_FILENO : STDIN_FILENO;
+		/* stdin/stdout */
+		if (flags & O_CREAT) {
+			ofmt = ofmt ? ofmt : FORMAT_ASCII;
+			return STDOUT_FILENO;
+		} else {
+			ifmt = ifmt ? ifmt : FORMAT_DUMP;
+			return STDIN_FILENO;
+		}
 	} else if ((p = strchr(input, ':'))) {
+		/* addr:port */
 		*p++ = '\0';
 		if ((port = atoi(p)) == 0) { /* FIXME strtonum */
 			warnx("%s is not a valid port number", p);
@@ -185,18 +201,6 @@ rtpopen(const char *input, int flags)
 		socket(res->ai_family, res->ai_socktype, res->ai_protocol))) {
 			warn("socket");
 			goto bad;
-		}
-		reader = reader ? reader : read_rtp;
-		writer = writer ? writer : write_rtp;
-		if ((reader != read_rtp  && reader != read_raw)
-		||  (writer != write_rtp && writer != write_raw)) {
-			warnx("Only rtp and raw format supported for %s",input);
-			goto bad;
-		}
-		if (reader == read_raw && writer != write_raw) {
-			if (writer != write_rtp)
-				warnx("Using raw output with raw input");
-			writer = write_raw;
 		}
 		if (islocal(a = (struct sockaddr_in*) res->ai_addr)) {
 			/* If the local socket is an input, we will read on it;
@@ -239,22 +243,56 @@ rtpopen(const char *input, int flags)
 			}
 		}
 		freeaddrinfo(res);
+		if (flags & O_CREAT) {
+			ofmt = ofmt ? ofmt : FORMAT_RTP;
+			if (ofmt != FORMAT_RTP && ofmt != FORMAT_RAW) {
+				warnx("output only supports rtp or raw format");
+				goto bad;
+			}
+		} else {
+			ifmt = ifmt ? ifmt : FORMAT_RTP;
+			if (ifmt != FORMAT_RTP && ifmt != FORMAT_RAW) {
+				warnx("input only supports rtp or raw format");
+				goto bad;
+			}
+		}
 	} else {
-		fd = (flags & O_CREAT)
-			? open(input, flags, 0644)
-			: open(input, flags);
-		if (fd == -1) {
+		if (-1 == (fd = (flags & O_CREAT)
+		? open(input, flags, 0644)
+		: open(input, flags))) {
 			warn("%s", input);
 			goto bad;
 		}
-		if ((p = strrchr(input, '.')) && (fmt = getfmt(++p))) {
-			reader = reader ? reader : fmt->reader;
-			writer = writer ? writer : fmt->writer;
+		if ((p = strrchr(input, '.')))
+			fmt = getfmt(++p);
+		if ((flags & O_CREAT) && (ofmt == NULL)) {
+			ofmt = fmt ? fmt : FORMAT_ASCII;
+		} else if (ifmt == NULL) {
+			ifmt = fmt ? fmt : FORMAT_DUMP;
 		}
-		reader = reader ? reader : read_dump;
-		writer = writer ? writer : write_ascii;
 	}
-	/* FIXME: open a dump, read over first line, etc */
+	/* special case: raw input can ony produce raw output */
+	if (ifmt == FORMAT_RAW && ofmt != FORMAT_RAW) {
+		warnx("Using raw output with raw input");
+		ofmt = FORMAT_RAW;
+	}
+	/* special case: read over the dump file header */
+	if (ifmt == FORMAT_DUMP) {
+		char buf[16];
+		if ((read(fd, buf, DUMPHDRLEN) != DUMPHDRLEN)
+		||  (strncmp(buf, DUMPHDR, DUMPHDRLEN) != 0)) {
+			warnx("Invalid dump file header");
+			goto bad;
+		}
+		while (read(fd, p, 1) == 1) {
+			if (*p == '\n')
+				break;
+		}
+		if (*p != '\n') {
+			warnx("Invalid dump file header");
+			goto bad;
+		}
+	}
 	return fd;
 bad:
 	freeaddrinfo(res);
@@ -277,20 +315,18 @@ main(int argc, char** argv)
 
 	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
 		case 'i':
-			if ((fmt = getfmt(optarg)))
-				reader = fmt->reader;
-			else {
+			if (((fmt = getfmt(optarg))) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
+			ifmt = fmt;
 			break;
 		case 'o':
-			if ((fmt = getfmt(optarg)))
-				writer = fmt->writer;
-			else {
+			if ((fmt = getfmt(optarg)) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
+			ofmt = fmt;
 			break;
 		case 'v':
 			break;
@@ -302,35 +338,49 @@ main(int argc, char** argv)
 	argc -= optind;
 	argv += optind;
 
+	if (argc > 2) {
+		usage();
+		return -1;
+	}
+
 	if (getifaddrs(&ifaces) == -1)
 		err(1, NULL);
-
-	if (argc) {
-		if ((ifd = rtpopen(*argv, O_RDONLY)) == -1) {
-			warn("Cannot open %s for reading", *argv);
-			return -1;
-		}
-		argv++;
-		argc--;
+	if (-1 == (ifd = *argv
+	? rtpopen(*argv++, O_RDONLY)
+	: rtpopen("-",     O_RDONLY))) {
+		warnx("Cannot open input for reading");
+		return -1;
 	}
-	if (argc) {
-		if ((ofd = rtpopen(*argv, O_WRONLY|O_CREAT|O_TRUNC)) == -1) {
-			warn("Cannot open %s for writing", *argv);
-			return -1;
-		}
-		argv++;
-		argc--;
+	if (-1 == (ofd = *argv
+	? rtpopen(*argv++, O_WRONLY|O_CREAT|O_TRUNC)
+	: rtpopen("-",     O_WRONLY|O_CREAT|O_TRUNC))) {
+		warnx("Cannot open output for writing");
+		return -1;
 	}
 	freeifaddrs(ifaces);
 
+	if (ifmt == NULL) {
+		warnx("Input format not specified");
+		return -1;
+	}
+	if (ofmt == NULL) {
+		warnx("Output format not specified");
+		return -1;
+	}
+
+	reader = ifmt->reader;
+	writer = ofmt->writer;
 	while ((r = reader(ifd, buf, BUFLEN)) > 0) {
 		if ((w = writer(ofd, buf, r)) != r) {
 			warn("write");
 			warnx("%zd != %zd bytes written", w, r);
 		}
 	}
-	if (r == -1)
+
+	if (r == -1) {
 		warnx("error while trying to read %d bytes", BUFLEN);
+		return -1;
+	}
 
 	return 0;
 }
