@@ -77,16 +77,63 @@ read_dumphdr(int fd)
 	return DUMPHDRSIZE;
 }
 
-ssize_t
-read_dpkthdr(int fd, void *buf, size_t len)
+void
+print_dpkthdr(struct dpkthdr *dpkthdr)
 {
-	return read(fd, buf, len);
+	if (dpkthdr == NULL)
+		return;
+	printf("%08u ", dpkthdr->usec);
+	if (dpkthdr->plen) {
+		printf("RTP %u bytes (%lu captured)",
+			dpkthdr->plen, dpkthdr->dlen - DPKTHDRSIZE);
+	} else {
+		printf("RTCP");
+	}
+	putchar('\n');
 }
 
 ssize_t
+read_dpkthdr(int fd, void *buf, size_t len)
+{
+	ssize_t r = 0;
+	struct dpkthdr *dpkthdr;
+	if (len < DPKTHDRSIZE) {
+		warnx("Bufer full");
+		return -1;
+	}
+	if ((r = read(fd, buf, DPKTHDRSIZE)) == 0) {
+		return 0;
+	} else if (r != DPKTHDRSIZE) {
+		warnx("Error reading dumped packet header");
+		return -1;
+	}
+	dpkthdr = (struct dpkthdr*) buf;
+	dpkthdr->dlen = ntohs(dpkthdr->dlen);
+	dpkthdr->plen = ntohs(dpkthdr->plen);
+	dpkthdr->usec = ntohl(dpkthdr->usec);
+	return r;;
+}
+
+/* Read the next packet stored in a dump file into a buffer.
+ * Return bytes read, or -1 on error. */
+ssize_t
 read_dump(int fd, void *buf, size_t len)
 {
-	return read(fd, buf, len);
+	ssize_t r, s = 0;
+	struct dpkthdr *dpkthdr;
+	if ((r = read_dpkthdr(fd, buf, len)) == -1)
+		return -1;
+	dpkthdr = (struct dpkthdr*) buf;
+	s += r, len -= r;
+	if (len < dpkthdr->dlen - DPKTHDRSIZE) {
+		warnx("Buffer full");
+		return -1;
+	}
+	if ((r = read(fd, buf+s, dpkthdr->dlen - DPKTHDRSIZE)) == -1)
+		return -1;
+	s += r, len -= r;
+	print_dpkthdr(dpkthdr);
+	return s;
 }
 
 ssize_t

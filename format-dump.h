@@ -31,15 +31,16 @@ struct dumphdr {
 };
 
 struct dpkthdr {
-	uint16_t dlen;   /* length of the dumped packet, including dpkthdr */
-	uint16_t plen;   /* length of the original RTP header + payload    */
-	/* Note that dlen < plen if payload was truncated during dump.     */
-	uint32_t offset; /* usec since start */
+	uint16_t dlen; /* length of the dumped packet, including dpkthdr */
+	uint16_t plen; /* length of the original RTP header + payload    */
+	/* Note that dlen < plen if payload was truncated during dump.   */
+	uint32_t usec; /* usec since start */
 };
 
 #define DUMPHDR     "#!rtpplay1.0 "
 #define DUMPHDRLEN  strlen(DUMPHDR)
 #define DUMPHDRSIZE sizeof(struct dumphdr)
+#define DPKTHDRSIZE sizeof(struct dpkthdr)
 
 ssize_t	read_dumpline	(int fd);
 ssize_t	read_dumphdr	(int fd);

@@ -34,7 +34,7 @@
 
 #include "rtp.h"
 
-#define BUFLEN 1024
+#define BUFLEN 2048
 
 extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
