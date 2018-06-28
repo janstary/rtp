@@ -44,7 +44,7 @@ DISTFILES = \
 	$(SRCS)			\
 	$(HAVE_SRCS)		\
 	$(COMPAT_SRCS)		\
-	session.dump
+	session.rtp
 
 include Makefile.local
 
@@ -74,7 +74,7 @@ lint: $(MAN1)
 	mandoc -Tlint -Wstyle $(MAN1)
 
 test: $(BINS)
-	./rtp session.dump /dev/null
+	./rtp session.rtp /dev/null
 
 Makefile.local config.h: configure $(HAVESRCS)
 	@echo "$@ is out of date; please run ./configure"

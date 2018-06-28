@@ -74,11 +74,21 @@ usage()
 }
 
 struct format*
-getfmt(const char *name)
+fmtbyname(const char *name)
 {
 	struct format *fmt;
 	for (fmt = formats; fmt && fmt->name; fmt++)
 		if (strcmp(fmt->name, name) == 0)
+			return fmt;
+	return NULL;
+}
+
+struct format*
+fmtbysuff(const char *suff)
+{
+	struct format *fmt;
+	for (fmt = formats; fmt && fmt->name; fmt++)
+		if (strcmp(fmt->suff, suff) == 0)
 			return fmt;
 	return NULL;
 }
@@ -236,7 +246,7 @@ rtpopen(const char *input, int flags)
 			goto bad;
 		}
 		if ((p = strrchr(input, '.')))
-			fmt = getfmt(++p);
+			fmt = fmtbysuff(++p);
 		if ((flags & O_CREAT) && (ofmt == NULL)) {
 			ofmt = fmt ? fmt : FORMAT_ASCII;
 		} else if (ifmt == NULL) {
@@ -279,13 +289,13 @@ main(int argc, char** argv)
 
 	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
 		case 'i':
-			if (((ifmt = getfmt(optarg))) == NULL) {
+			if (((ifmt = fmtbyname(optarg))) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
 			break;
 		case 'o':
-			if ((ofmt = getfmt(optarg)) == NULL) {
+			if ((ofmt = fmtbyname(optarg)) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
