@@ -41,7 +41,6 @@ struct rtphdr {
 	uint16_t	seq;
 	uint32_t	ts;
 	uint32_t	ssrc;
-	uint32_t	csrc[];
 };
 
 struct rtpext {
@@ -50,4 +49,5 @@ struct rtpext {
 };
 
 void	print_rtphdr(struct rtphdr*);
+ssize_t parse_rtphdr(struct rtphdr*);
 

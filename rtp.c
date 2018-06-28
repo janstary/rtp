@@ -237,13 +237,17 @@ dump2net(int ifd, int ofd)
 	return 0;
 }
 
+/* Read a dump file from ifd, write raw audio payload to ofd.
+ * Return 0 for success, -1 for error. */
 int
 dump2raw(int ifd, int ofd)
 {
-	ssize_t r = 0;
+	struct rtphdr *rtp;
+	struct dpkthdr *pkt;
 	unsigned char buf[BUFLEN];
-	struct dpkthdr *dpkthdr;
-	struct rtphdr *rtphdr;
+	unsigned char *p = buf;
+	ssize_t s, w, hlen;
+	int e = 0;
 	/* read and ignore the dump line */
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
 		warnx("Invalid dump file header");
@@ -254,19 +258,35 @@ dump2raw(int ifd, int ofd)
 		warnx("Invalid dump file header");
 		return -1;
 	}
-	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
-		dpkthdr = (struct dpkthdr*) buf;
+	/* parse each captured packet in turn,
+	 * writing its payload to the output. */
+	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
+		pkt = (struct dpkthdr*) buf;
 		if (verbose)
-			print_dpkthdr(dpkthdr);
-		if (dpkthdr->dlen - DPKTHDRSIZE < dpkthdr->plen) {
+			print_dpkthdr(pkt);
+		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
 			warnx("%lu bytes missing from captured RTP",
-				dpkthdr->plen - dpkthdr->dlen + DPKTHDRSIZE);
+				pkt->plen - pkt->dlen + DPKTHDRSIZE);
 		}
-		rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		if ((hlen = parse_rtphdr(rtp)) == -1) {
+			e = -1;
+			warnx("Error parsing RTP header");
+			continue;
+		}
 		if (verbose)
-			print_rtphdr(rtphdr);
+			print_rtphdr(rtp);
+		p += DPKTHDRSIZE + hlen;
+		s -= DPKTHDRSIZE + hlen;
+		if ((w = write(ofd, p, s)) == -1) {
+			warnx("Error writing %zd bytes of payload", s);
+			e = -1;
+		} else if (w < s) {
+			warnx("Only wrote %zd < %zd bytes of payload", w, s);
+			e = -1;
+		}
 	}
-	return r;
+	return e;
 }
 
 int
