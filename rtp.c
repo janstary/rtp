@@ -62,6 +62,8 @@ format_t ifmt = FORMAT_NONE;
 format_t ofmt = FORMAT_NONE;
 int (*convert)(int ifd, int ofd);
 
+static int verbose = 0;
+
 static void
 usage()
 {
@@ -88,13 +90,15 @@ fmtbysuff(const char *suff)
 	return FORMAT_NONE;
 }
 
+/*
 void
-praddr(const char* msg, struct sockaddr_in* a)
+print_addr(const char* msg, struct sockaddr_in* a)
 {
 	if (a == NULL)
 		return;
 	printf("%s %s:%d\n", msg, inet_ntoa(a->sin_addr), ntohs(a->sin_port));
 }
+*/
 
 int
 islocal(struct sockaddr_in *a)
@@ -252,13 +256,15 @@ dump2raw(int ifd, int ofd)
 	}
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		dpkthdr = (struct dpkthdr*) buf;
-		print_dpkthdr(dpkthdr);
+		if (verbose)
+			print_dpkthdr(dpkthdr);
 		if (dpkthdr->dlen - DPKTHDRSIZE < dpkthdr->plen) {
 			warnx("%lu bytes missing from captured RTP",
 				dpkthdr->plen - dpkthdr->dlen + DPKTHDRSIZE);
 		}
 		rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
-		print_rtphdr(rtphdr);
+		if (verbose)
+			print_rtphdr(rtphdr);
 	}
 	return r;
 }
@@ -290,6 +296,7 @@ main(int argc, char** argv)
 			}
 			break;
 		case 'v':
+			verbose = 1;
 			break;
 		default:
 			usage();
