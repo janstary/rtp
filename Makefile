@@ -56,6 +56,7 @@ include Makefile.depend
 
 clean:
 	rm -f $(TARBALL) $(BINS) $(OBJS)
+	rm -f session.{udp,raw,txt}
 	rm -rf *.dSYM *.core *~ .*~
 	rm -rf rtp-$(VERSION)
 
@@ -74,7 +75,9 @@ lint: $(MAN1)
 	mandoc -Tlint -Wstyle $(MAN1)
 
 test: $(BINS)
-	./rtp session.rtp /dev/null
+	./rtp session.rtp session.udp
+	./rtp session.rtp session.raw
+	./rtp session.rtp session.txt
 
 Makefile.local config.h: configure $(HAVESRCS)
 	@echo "$@ is out of date; please run ./configure"
