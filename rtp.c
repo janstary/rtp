@@ -201,13 +201,20 @@ rtpopen(const char *path, int flags)
 			}
 		}
 		freeaddrinfo(res);
-		if (ifmt == FORMAT_NONE)
-			ifmt = FORMAT_NET;
-		if (ofmt == FORMAT_NONE)
-			ofmt = FORMAT_NET;
-		if (ifmt != FORMAT_NET || ofmt != FORMAT_NET) {
-			warnx("Only net format allowed for %s", path);
-			goto bad;
+		if (flags & O_CREAT) {
+			if (ofmt == FORMAT_NONE) {
+				ofmt = FORMAT_NET;
+			} else if (ofmt != FORMAT_NET) {
+				warnx("Only net output allowed for %s", path);
+				goto bad;
+			}
+		} else {
+			if (ifmt == FORMAT_NONE) {
+				ifmt = FORMAT_NET;
+			} else if (ifmt != FORMAT_NET) {
+				warnx("Only net input allowed for %s", path);
+				goto bad;
+			}
 		}
 	} else {
 		if (-1 == (fd = (flags & O_CREAT)
@@ -231,10 +238,45 @@ bad:
 	return -1;
 }
 
+/* Read a dump file from ifd, send the RTP to ofd via net.
+ * Return 0 for success, -1 for error. */
 int
 dump2net(int ifd, int ofd)
 {
-	return 0;
+	struct rtphdr *rtp;
+	struct dpkthdr *pkt;
+	unsigned char buf[BUFLEN];
+	ssize_t s, w;
+	int e = 0;
+	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
+		warnx("Invalid dump file header");
+		return -1;
+	}
+	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
+		warnx("Invalid dump file header");
+		return -1;
+	}
+	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
+		pkt = (struct dpkthdr*) buf;
+		if (verbose)
+			print_dpkthdr(pkt);
+		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		if (parse_rtphdr(rtp) == -1) {
+			e = -1;
+			warnx("Error parsing RTP header");
+			continue;
+		}
+		if (verbose)
+			print_rtphdr(rtp);
+		if ((w = write(ofd, rtp, pkt->plen)) == -1) {
+			warnx("Error writing %u bytes of RTP", pkt->plen);
+			e = -1;
+		} else if (w < pkt->plen) {
+			warnx("Only wrote %zd < %u bytes of RTP",w, pkt->plen);
+			e = -1;
+		}
+	}
+	return s == -1 ? -1 : e;
 }
 
 /* Read a dump file from ifd, write raw audio payload to ofd.
@@ -248,18 +290,14 @@ dump2raw(int ifd, int ofd)
 	unsigned char *p = buf;
 	ssize_t s, w, hlen;
 	int e = 0;
-	/* read and ignore the dump line */
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
 		warnx("Invalid dump file header");
 		return -1;
 	}
-	/* read and ignore the dump hdr */
 	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
 		warnx("Invalid dump file header");
 		return -1;
 	}
-	/* parse each captured packet in turn,
-	 * writing its payload to the output. */
 	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) (p = buf);
 		if (pkt->plen == 0) {
@@ -269,7 +307,7 @@ dump2raw(int ifd, int ofd)
 		if (verbose)
 			print_dpkthdr(pkt);
 		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
-			warnx("%lu bytes missing from captured RTP",
+			warnx("%lu bytes of RTP payload missing",
 				pkt->plen - pkt->dlen + DPKTHDRSIZE);
 		}
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
@@ -290,7 +328,7 @@ dump2raw(int ifd, int ofd)
 			e = -1;
 		}
 	}
-	return e;
+	return s == -1 ? -1 : e;
 }
 
 int
