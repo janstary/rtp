@@ -1,8 +1,5 @@
-document the dump file format
-support also the other formats of rtptools (hex, header, ascii
-INSTALL
+support also the other formats of rtptools (hex, header, ascii)
 stream to more than one output
 sighandlers
-example.rtp
 support pcap as a format, have an example.pcap
 BUGS
