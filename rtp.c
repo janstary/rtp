@@ -268,11 +268,11 @@ dump2net(int ifd, int ofd)
 		}
 		if (verbose)
 			print_rtphdr(rtp);
-		if ((w = write(ofd, rtp, pkt->plen)) == -1) {
-			warnx("Error writing %u bytes of RTP", pkt->plen);
+		if ((w = send(ofd, rtp, pkt->plen, 0)) == -1) {
+			warnx("Error sending %u bytes of RTP", pkt->plen);
 			e = -1;
 		} else if (w < pkt->plen) {
-			warnx("Only wrote %zd < %u bytes of RTP",w, pkt->plen);
+			warnx("Only sent %zd < %u bytes of RTP",w, pkt->plen);
 			e = -1;
 		}
 	}
@@ -300,10 +300,8 @@ dump2raw(int ifd, int ofd)
 	}
 	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) (p = buf);
-		if (pkt->plen == 0) {
-			/*warnx("ignoring non-RTP packet in raw output");*/
+		if (pkt->plen == 0) /* not RTP */
 			continue;
-		}
 		if (verbose)
 			print_dpkthdr(pkt);
 		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
@@ -335,6 +333,40 @@ int
 dump2txt(int ifd, int ofd)
 {
 	return 0;
+}
+
+/* Read RTP packets from the ifd, write raw audio payload to ofd.
+ * Return 0 for success, -1 for error. */
+int
+net2raw(int ifd, int ofd)
+{
+	unsigned char *p;
+	unsigned char buf[BUFLEN];
+	struct rtphdr *rtp;
+	ssize_t s, w, hlen;
+	int e = 0;
+	while ((s = recv(ifd, buf, BUFLEN, 0)) > 0) {
+		if (verbose)
+			fprintf(stderr, "%zd bytes of RTP received", s);
+		rtp = (struct rtphdr*) (p = buf);
+		if ((hlen = parse_rtphdr(rtp)) == -1) {
+			e = -1;
+			warnx("Error parsing RTP header");
+			continue;
+		}
+		if (verbose)
+			print_rtphdr(rtp);
+		p += hlen;
+		s -= hlen;
+		if ((w = write(ofd, p, s)) == -1) {
+			warnx("Error writing %zd bytes of payload", s);
+			e = -1;
+		} else if (w < s) {
+			warnx("Only wrote %zd < %zd bytes of payload", w, s);
+			e = -1;
+		}
+	}
+	return s == -1 ? -1 : e;
 }
 
 int
@@ -389,6 +421,7 @@ main(int argc, char** argv)
 	}
 	freeifaddrs(ifaces);
 
+	/* FIXME: remaining combinations */
 	if (ifmt == FORMAT_NONE) {
 		warnx("Input format not determined");
 	} else if (ifmt == FORMAT_DUMP) {
@@ -402,20 +435,14 @@ main(int argc, char** argv)
 			convert = dump2txt;
 		}
 	} else if (ifmt == FORMAT_NET) {
+		if (ofmt == FORMAT_RAW) {
+			convert = net2raw;
+		}
 	} else if (ifmt == FORMAT_RAW) {
-		warnx("raw can only be an output");
+		warnx("Only output can be raw");
 		return -1;
 	} else if (ifmt == FORMAT_TXT) {
 	}
 
 	return convert ? convert(ifd, ofd) : -1;
-
-	/*
-	while ((r = reader(ifd, buf, BUFLEN)) > 0) {
-		if ((w = writer(ofd, buf, r)) != r) {
-			warn("write");
-			warnx("%zd != %zd bytes written", w, r);
-		}
-	}
-	*/
 }
