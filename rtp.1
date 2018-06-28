@@ -74,22 +74,30 @@ A dump file starts with a txt line of the form
 followed by a dumpfile header:
 .Bd -literal
 struct dumphdr {
-	struct timeval32 {
+	struct {
 		uint32_t sec;
 		uint32_t usec;
-	}		start;
-	uint32_t	source;
+	}		time;
+	uint32_t	addr;
 	uint16_t	port;
-	uint16_t	pad;
+	uint16_t	zero;
 };
 .Ed
+.Pp
+When reading,
+.Nm
+ignores the starting line
+and the addr and port stored in the above header.
+When writing,
+.Nm
+sets them to zero.
 .Pp
 The actual RTP packets follow, each prefixed with:
 .Bd -literal
 struct dpkthdr {
-	uint16_t dlen; /* len of the dumped packet, with this   */
-	uint16_t plen; /* len of the original RTP hdr + payload */
-	uint32_t usec; /* dump time: usec since start */
+	uint16_t dlen; /* stored packet length, including this   */
+	uint16_t plen; /* original RTP (header + payload) length */
+	uint32_t usec; /* dump time: usec since start time       */
 };
 .Ed
 .Pp
@@ -99,13 +107,10 @@ option),
 .\"FIXME
 dlen will be shorter than plen.
 The RTP header is always there.
-All vaiables are stored in the network byte order.
-.It Cm udp
-RTP packets inside UDP datagrams.
-For network inputs and outputs, this is the only format allowed.
-A local file can also be stored in this format
-(the RTP header does not specify the length of the payload,
-so it needs to be computed from UDP).
+All fields are stored in the network byte order.
+.It Cm net
+The actual RTP packets being sent and received.
+This is the only format used with network connections.
 .It Cm raw
 The actual audio payload of the RTP packet.
 This format can only be used as an output to a file.
@@ -117,12 +122,17 @@ RTP packets described with lines of text.
 .El
 .Pp
 For regular files, the format will be guessed from the file name suffix:
-.Dq rtp ,
-.Dq udp ,
+.Dq rtp
+for
+.Cm dump ,
 .Dq raw
+for
+.Cm raw ,
 and
-.Dq txt ,
-respectively, with
+.Dq txt
+for
+.Cm ascii ,
+with
 .Cm dump
 being the default if the format cannot be guessed from the name.
 .Pp

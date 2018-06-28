@@ -1,5 +1,5 @@
 format-dump.o: format-dump.c format-dump.h config.h
-format-udp.o: format-udp.c format-udp.h config.h
+format-net.o: format-net.c format-net.h config.h
 rtp.o: rtp.c rtp.h config.h
 
 compat-err.o: compat-err.c

@@ -20,14 +20,14 @@ MAN1 =	rtp.1
 
 OBJS =	rtp.o		\
 	format-dump.o	\
-	format-udp.o
+	format-net.o
 
 SRCS =	rtp.c		\
 	rtp.h		\
 	format-dump.c	\
 	format-dump.h	\
-	format-udp.c	\
-	format-udp.h	\
+	format-net.c	\
+	format-net.h	\
 
 HAVE_SRCS =	have-err.c   have-progname.c   have-strtonum.c
 COMPAT_SRCS =	compat-err.c compat-progname.c compat-strtonum.c
@@ -56,8 +56,8 @@ include Makefile.depend
 
 clean:
 	rm -f $(TARBALL) $(BINS) $(OBJS)
-	rm -f session.{udp,raw,txt}
 	rm -rf *.dSYM *.core *~ .*~
+	rm -f session.{raw,txt}
 	rm -rf rtp-$(VERSION)
 
 distclean: clean
@@ -75,7 +75,6 @@ lint: $(MAN1)
 	mandoc -Tlint -Wstyle $(MAN1)
 
 test: $(BINS)
-	./rtp session.rtp session.udp
 	./rtp session.rtp session.raw
 	./rtp session.rtp session.txt
 
