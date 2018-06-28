@@ -347,7 +347,7 @@ net2raw(int ifd, int ofd)
 	int e = 0;
 	while ((s = recv(ifd, buf, BUFLEN, 0)) > 0) {
 		if (verbose)
-			fprintf(stderr, "%zd bytes of RTP received", s);
+			fprintf(stderr, "%zd bytes of RTP received\n", s);
 		rtp = (struct rtphdr*) (p = buf);
 		if ((hlen = parse_rtphdr(rtp)) == -1) {
 			e = -1;
