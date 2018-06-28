@@ -17,16 +17,16 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "format-udp.h"
+#include "format-net.h"
 
 ssize_t
-read_udp(int fd, void *buf, size_t len)
+read_net(int fd, void *buf, size_t len)
 {
 	return read(fd, buf, len);
 }
 
 ssize_t
-write_udp(int fd, void *buf, size_t len)
+write_net(int fd, void *buf, size_t len)
 {
 	return write(fd, buf, len);
 }

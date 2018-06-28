@@ -24,10 +24,10 @@ struct dumphdr {
 	struct {
 		uint32_t sec;
 		uint32_t usec;
-	}		start;
-	uint32_t	source;
+	}		time;
+	uint32_t	addr;
 	uint16_t	port;
-	uint16_t	pad;
+	uint16_t	zero;
 };
 
 struct dpkthdr {
@@ -37,15 +37,16 @@ struct dpkthdr {
 	uint32_t usec; /* usec since start */
 };
 
-#define DUMPHDR     "#!rtpplay1.0 "
-#define DUMPHDRLEN  strlen(DUMPHDR)
+#define DUMPLINE    "#!rtpplay1.0 "
+#define DUMPLINELEN strlen(DUMPLINE)
 #define DUMPHDRSIZE sizeof(struct dumphdr)
 #define DPKTHDRSIZE sizeof(struct dpkthdr)
 
-ssize_t	read_dumpline	(int fd);
-ssize_t	read_dumphdr	(int fd);
-
+/*
 ssize_t	read_dpkthdr	(int fd, void* buf, size_t len);
-ssize_t	read_dump	(int fd, void *buf, size_t len);
+*/
 
+ssize_t	read_dumpline	(int fd, void *buf, size_t len);
+ssize_t	read_dumphdr	(int fd, void *buf, size_t len);
+ssize_t	read_dump	(int fd, void *buf, size_t len);
 ssize_t	write_dump	(int fd, void *buf, size_t len);

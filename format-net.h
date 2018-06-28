@@ -31,5 +31,5 @@
 #include <netdb.h>
 */
 
-ssize_t read_udp    (int fd, void *buf, size_t len);
-ssize_t write_udp   (int fd, void *buf, size_t len);
+ssize_t read_net    (int fd, void *buf, size_t len);
+ssize_t write_net   (int fd, void *buf, size_t len);

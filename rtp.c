@@ -30,42 +30,36 @@
 #include <netdb.h>
 
 #include "format-dump.h"
-#include "format-udp.h"
+#include "format-net.h"
 
-#define BUFLEN 2048
+#define BUFLEN 8192
 
 extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
 
-ssize_t (*reader)   (int fd, void *buf, size_t len);
-ssize_t (*writer)   (int fd, void *buf, size_t len);
-
-ssize_t read_raw    (int fd, void *buf, size_t len);
-ssize_t read_ascii  (int fd, void *buf, size_t len);
-
-ssize_t write_raw   (int fd, void *buf, size_t len);
-ssize_t write_ascii (int fd, void *buf, size_t len);
+typedef enum {
+	FORMAT_NONE,
+	FORMAT_DUMP,
+	FORMAT_NET,
+	FORMAT_RAW,
+	FORMAT_TXT
+} format_t;
 
 struct format {
-	const char *name;
-	const char *suff;
-	ssize_t (*reader)(int fd, void *buf, size_t len);
-	ssize_t (*writer)(int fd, void *buf, size_t len);
+	format_t	type;
+	const char*	name;
+	const char*	suff;
 } formats[] = {
-	{ "dump",	"rtp",	read_dump,	write_dump  },
-	{ "udp",	"udp",	read_udp,	write_udp   },
-	{ "raw",	"raw",	read_raw,	write_raw   },
-	{ "ascii",	"txt",	read_ascii,	write_ascii },
-	{ NULL,		NULL,	NULL,		NULL        }
+	{ FORMAT_DUMP,	"dump",	"rtp"	},
+	{ FORMAT_NET,	"net",	NULL	},
+	{ FORMAT_RAW,	"raw",	"raw"	},
+	{ FORMAT_TXT,	"txt",	"txt"	},
+	{ FORMAT_NONE,	NULL,	NULL	}
 };
 
-#define FORMAT_DUMP  (&(formats[0]))
-#define FORMAT_RTP   (&(formats[1]))
-#define FORMAT_RAW   (&(formats[2]))
-#define FORMAT_ASCII (&(formats[3]))
-
-struct format *ifmt = NULL;
-struct format *ofmt = NULL;
+format_t ifmt = FORMAT_NONE;
+format_t ofmt = FORMAT_NONE;
+int (*convert)(int ifd, int ofd);
 
 static void
 usage()
@@ -73,24 +67,24 @@ usage()
 	fprintf(stderr, "%s [-v] [input] [output]\n", __progname);
 }
 
-struct format*
+format_t
 fmtbyname(const char *name)
 {
 	struct format *fmt;
 	for (fmt = formats; fmt && fmt->name; fmt++)
 		if (strcmp(fmt->name, name) == 0)
-			return fmt;
-	return NULL;
+			return fmt->type;
+	return FORMAT_NONE;
 }
 
-struct format*
+format_t
 fmtbysuff(const char *suff)
 {
 	struct format *fmt;
 	for (fmt = formats; fmt && fmt->name; fmt++)
-		if (strcmp(fmt->suff, suff) == 0)
-			return fmt;
-	return NULL;
+		if (fmt->suff && strcmp(fmt->suff, suff) == 0)
+			return fmt->type;
+	return FORMAT_NONE;
 }
 
 void
@@ -112,55 +106,32 @@ islocal(struct sockaddr_in *a)
 	return 0;
 }
 
-ssize_t
-read_raw(int fd, void *buf, size_t len)
-{
-	return read(fd, buf, len);
-}
-
-ssize_t
-write_raw(int fd, void *buf, size_t len)
-{
-	return write(fd, buf, len);
-}
-
-ssize_t
-read_ascii(int fd, void *buf, size_t len)
-{
-	return read(fd, buf, len);
-}
-
-ssize_t
-write_ascii(int fd, void *buf, size_t len)
-{
-	return write(fd, buf, len);
-}
-
-/* Open and prepare the input for reading, or the output for writing.
- * Return a suitable file descriptor (FIXME? FILE*) that the reader
- * can read from and the writer can write to. Based on the type of
- * input/output, set the input/output format if not set already. */
+/* Open the input for reading, or the output for writing.
+ * Return a file descriptor the convertor can read from or write to, or -1.
+ * Based on the type of input/output, set the input/output format if not set. */
 int
-rtpopen(const char *input, int flags)
+rtpopen(const char *path, int flags)
 {
 	int e;
 	int fd = -1;
 	uint32_t port;
 	char* p = NULL;
-	struct format *fmt = NULL;
+	format_t fmt = FORMAT_NONE;;
 	struct addrinfo *res = NULL;
 	struct addrinfo info;
 	struct sockaddr_in *a;
-	if (strcmp(input, "-") == 0) {
+	if (strcmp(path, "-") == 0) {
 		/* stdin/stdout */
 		if (flags & O_CREAT) {
-			ofmt = ofmt ? ofmt : FORMAT_ASCII;
+			if (ofmt == FORMAT_NONE)
+				ofmt = FORMAT_TXT;
 			return STDOUT_FILENO;
 		} else {
-			ifmt = ifmt ? ifmt : FORMAT_DUMP;
+			if (ifmt == FORMAT_NONE)
+				ifmt = FORMAT_DUMP;
 			return STDIN_FILENO;
 		}
-	} else if ((p = strchr(input, ':'))) {
+	} else if ((p = strchr(path, ':'))) {
 		/* addr:port */
 		*p++ = '\0';
 		if ((port = atoi(p)) == 0) { /* FIXME strtonum */
@@ -172,12 +143,12 @@ rtpopen(const char *input, int flags)
 		info.ai_socktype = SOCK_DGRAM;
 		info.ai_protocol = IPPROTO_UDP;
 		info.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV;
-		if ((e = getaddrinfo(input, p, &info, &res))) {
+		if ((e = getaddrinfo(path, p, &info, &res))) {
 			warnx("%s", gai_strerror(e));
 			return -1;
 		}
 		if (res == NULL) {
-			warn("getaddrinfo %s", input);
+			warn("getaddrinfo %s", path);
 			goto bad;
 		}
 		if (-1 == (fd =
@@ -225,48 +196,28 @@ rtpopen(const char *input, int flags)
 			}
 		}
 		freeaddrinfo(res);
-		if (flags & O_CREAT) {
-			ofmt = ofmt ? ofmt : FORMAT_RTP;
-			if (ofmt != FORMAT_RTP && ofmt != FORMAT_RAW) {
-				warnx("output only supports rtp or raw format");
-				goto bad;
-			}
-		} else {
-			ifmt = ifmt ? ifmt : FORMAT_RTP;
-			if (ifmt != FORMAT_RTP && ifmt != FORMAT_RAW) {
-				warnx("input only supports rtp or raw format");
-				goto bad;
-			}
+		if (ifmt == FORMAT_NONE)
+			ifmt = FORMAT_NET;
+		if (ofmt == FORMAT_NONE)
+			ofmt = FORMAT_NET;
+		if (ifmt != FORMAT_NET || ofmt != FORMAT_NET) {
+			warnx("Only net format allowed for %s", path);
+			goto bad;
 		}
 	} else {
 		if (-1 == (fd = (flags & O_CREAT)
-		? open(input, flags, 0644)
-		: open(input, flags))) {
-			warn("%s", input);
+		? open(path, flags, 0644)
+		: open(path, flags))) {
+			warn("%s", path);
 			goto bad;
 		}
-		if ((p = strrchr(input, '.')))
+		if ((p = strrchr(path, '.')))
 			fmt = fmtbysuff(++p);
-		if ((flags & O_CREAT) && (ofmt == NULL)) {
-			ofmt = fmt ? fmt : FORMAT_ASCII;
-		} else if (ifmt == NULL) {
+		if ((flags & O_CREAT) && (ofmt == FORMAT_NONE)) {
+			ofmt = fmt ? fmt : FORMAT_TXT;
+		} else if (ifmt == FORMAT_NONE) {
 			ifmt = fmt ? fmt : FORMAT_DUMP;
-			if (ifmt == FORMAT_DUMP) {
-				if (read_dumpline(fd) == -1) {
-					warnx("Invalid dump file header");
-					goto bad;
-				}
-				if (read_dumphdr(fd) == -1) {
-					warnx("Invalid dump file header");
-					goto bad;
-				}
-			}
 		}
-	}
-	/* raw input can ony produce raw output */
-	if (ifmt == FORMAT_RAW && ofmt != FORMAT_RAW) {
-		warnx("Using raw output with raw input");
-		ofmt = FORMAT_RAW;
 	}
 	return fd;
 bad:
@@ -276,26 +227,50 @@ bad:
 }
 
 int
+dump2net(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
+dump2raw(int ifd, int ofd)
+{
+	unsigned char buf[BUFLEN];
+	struct dumphdr dumphdr;
+	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
+		warnx("Invalid dump file header");
+		return -1;
+	}
+	if (read_dumphdr(ifd, &dumphdr, DUMPHDRSIZE) == -1) {
+		warnx("Invalid dump file header");
+		return -1;
+	}
+	/*print_dumphdr(&dumphdr);*/
+	return 0;
+}
+
+int
+dump2txt(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
 main(int argc, char** argv)
 {
 	int c;
-	ssize_t r, w;
 	int ifd = STDIN_FILENO;
 	int ofd = STDOUT_FILENO;
-	unsigned char buf[BUFLEN];
-
-	reader = NULL;
-	writer = NULL;
 
 	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
 		case 'i':
-			if (((ifmt = fmtbyname(optarg))) == NULL) {
+			if (((ifmt = fmtbyname(optarg))) == FORMAT_NONE) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
 			break;
 		case 'o':
-			if ((ofmt = fmtbyname(optarg)) == NULL) {
+			if ((ofmt = fmtbyname(optarg)) == FORMAT_NONE) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
@@ -331,28 +306,33 @@ main(int argc, char** argv)
 	}
 	freeifaddrs(ifaces);
 
-	if (ifmt == NULL) {
-		warnx("Input format not specified");
+	if (ifmt == FORMAT_NONE) {
+		warnx("Input format not determined");
+	} else if (ifmt == FORMAT_DUMP) {
+		if (ofmt == FORMAT_DUMP) {
+			warnx("No point cnverting dump to dump.");
+		} else if (ofmt == FORMAT_NET) {
+			convert = dump2net;
+		} else if (ofmt == FORMAT_RAW) {
+			convert = dump2raw;
+		} else if (ofmt == FORMAT_TXT) {
+			convert = dump2txt;
+		}
+	} else if (ifmt == FORMAT_NET) {
+	} else if (ifmt == FORMAT_RAW) {
+		warnx("raw can only be an output");
 		return -1;
-	}
-	if (ofmt == NULL) {
-		warnx("Output format not specified");
-		return -1;
+	} else if (ifmt == FORMAT_TXT) {
 	}
 
-	reader = ifmt->reader;
-	writer = ofmt->writer;
+	return convert ? convert(ifd, ofd) : -1;
+
+	/*
 	while ((r = reader(ifd, buf, BUFLEN)) > 0) {
 		if ((w = writer(ofd, buf, r)) != r) {
 			warn("write");
 			warnx("%zd != %zd bytes written", w, r);
 		}
 	}
-
-	if (r == -1) {
-		warnx("error while trying to read %d bytes", BUFLEN);
-		return -1;
-	}
-
-	return 0;
+	*/
 }

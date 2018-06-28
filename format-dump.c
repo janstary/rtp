@@ -26,18 +26,17 @@
  * Check that the version is there, ignore the addr/port.
  * Return bytes read, or -1 on error. */
 ssize_t
-read_dumpline(int fd)
+read_dumpline(int fd, void *buf, size_t len)
 {
 	char p;
 	ssize_t r;
-	char buf[16];
-	if ((read(fd, buf, DUMPHDRLEN) != DUMPHDRLEN)
-	||  (strncmp(buf, DUMPHDR, DUMPHDRLEN) != 0)
+	if ((read(fd, buf, DUMPLINELEN) != DUMPLINELEN)
+	||  (strncmp(buf, DUMPLINE, DUMPLINELEN) != 0)
 	||  (strncmp(buf+9, "1.0", 3) != 0)) {
-		warnx("Invalid dump file header");
+		warnx("Invalid dump line");
 		return -1;
 	}
-	r = DUMPHDRLEN;
+	r = DUMPLINELEN;
 	while (read(fd, &p, 1) == 1) {
 		r++;
 		if (p == '\n')
@@ -56,24 +55,23 @@ print_dumphdr(struct dumphdr *dumphdr)
 	if (dumphdr == NULL)
 		return;
 	printf("dump starts on %u:%u\n",
-		dumphdr->start.sec, dumphdr->start.usec);
+		dumphdr->time.sec, dumphdr->time.usec);
 }
 
 /* Read the binary dumphdr.
  * Return bytes read, or -1 on error. */
 ssize_t
-read_dumphdr(int fd)
+read_dumphdr(int fd, void *buf, size_t len)
 {
-	struct dumphdr dumphdr;
-	if (read(fd, (void*) &dumphdr, DUMPHDRSIZE) != DUMPHDRSIZE) {
+	struct dumphdr *dumphdr = (struct dumphdr*) buf;
+	if (read(fd, buf, DUMPHDRSIZE) != DUMPHDRSIZE) {
 		warnx("Broken dump header");
 		return -1;
 	}
-	dumphdr.start.sec = ntohl(dumphdr.start.sec);
-	dumphdr.start.usec = ntohl(dumphdr.start.usec);
-	dumphdr.source = ntohl(dumphdr.source);
-	dumphdr.port = ntohs(dumphdr.port);
-	/*print_dumphdr(&dumphdr);*/
+	dumphdr->time.sec = ntohl(dumphdr->time.sec);
+	dumphdr->time.usec = ntohl(dumphdr->time.usec);
+	dumphdr->addr = ntohl(dumphdr->addr);
+	dumphdr->port = ntohs(dumphdr->port);
 	return DUMPHDRSIZE;
 }
 
