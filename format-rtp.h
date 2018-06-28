@@ -17,6 +17,8 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <stdint.h>
+
 #define RTPVERSION 2
 
 struct rtphdr {
@@ -33,6 +35,9 @@ struct rtphdr {
 };
 
 struct rtpext {
-	uint16_t ehid;	/* extension header ID, profile-dependent */
+	uint16_t ehid;	/* extension header ID; profile-dependent */
 	uint16_t elen;	/* extension length in 32-bit words */
 };
+
+void	print_rtphdr(struct rtphdr*);
+

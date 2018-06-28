@@ -31,6 +31,7 @@
 
 #include "format-dump.h"
 #include "format-net.h"
+#include "format-rtp.h"
 
 #define BUFLEN 8192
 
@@ -235,18 +236,31 @@ dump2net(int ifd, int ofd)
 int
 dump2raw(int ifd, int ofd)
 {
+	ssize_t r = 0;
 	unsigned char buf[BUFLEN];
-	struct dumphdr dumphdr;
+	struct dpkthdr *dpkthdr;
+	struct rtphdr *rtphdr;
+	/* read and ignore the dump line */
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
 		warnx("Invalid dump file header");
 		return -1;
 	}
-	if (read_dumphdr(ifd, &dumphdr, DUMPHDRSIZE) == -1) {
+	/* read and ignore the dump hdr */
+	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
 		warnx("Invalid dump file header");
 		return -1;
 	}
-	/*print_dumphdr(&dumphdr);*/
-	return 0;
+	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
+		dpkthdr = (struct dpkthdr*) buf;
+		print_dpkthdr(dpkthdr);
+		if (dpkthdr->dlen - DPKTHDRSIZE < dpkthdr->plen) {
+			warnx("%lu bytes missing from captured RTP",
+				dpkthdr->plen - dpkthdr->dlen + DPKTHDRSIZE);
+		}
+		rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		print_rtphdr(rtphdr);
+	}
+	return r;
 }
 
 int

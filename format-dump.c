@@ -21,8 +21,9 @@
 #include <err.h>
 
 #include "format-dump.h"
+#include "format-rtp.h"
 
-/* Read over the DUMPHDR line.
+/* Read over the DUMPLINE
  * Check that the version is there, ignore the addr/port.
  * Return bytes read, or -1 on error. */
 ssize_t
@@ -54,11 +55,11 @@ print_dumphdr(struct dumphdr *dumphdr)
 {
 	if (dumphdr == NULL)
 		return;
-	printf("dump starts on %u:%u\n",
+	fprintf(stderr, "dump starts on %u:%u\n",
 		dumphdr->time.sec, dumphdr->time.usec);
 }
 
-/* Read the binary dumphdr.
+/* Read the global binary dumphdr.
  * Return bytes read, or -1 on error. */
 ssize_t
 read_dumphdr(int fd, void *buf, size_t len)
@@ -80,14 +81,13 @@ print_dpkthdr(struct dpkthdr *dpkthdr)
 {
 	if (dpkthdr == NULL)
 		return;
-	printf("%08u ", dpkthdr->usec);
+	fprintf(stderr, "%08u ", dpkthdr->usec);
 	if (dpkthdr->plen) {
-		printf("RTP %u bytes (%lu captured)",
+		fprintf(stderr, "RTP  %u bytes (%lu captured)\n",
 			dpkthdr->plen, dpkthdr->dlen - DPKTHDRSIZE);
 	} else {
-		printf("RTCP");
+		fprintf(stderr, "RTCP\n");
 	}
-	putchar('\n');
 }
 
 ssize_t
@@ -112,25 +112,33 @@ read_dpkthdr(int fd, void *buf, size_t len)
 	return r;
 }
 
-/* Read the next packet stored in a dump file into a buffer.
+/* Read record from a dump file into a buffer.
+ * This means the dpkthdr, the rtphdr, and the payload (as much as stored).
  * Return bytes read, or -1 on error. */
 ssize_t
 read_dump(int fd, void *buf, size_t len)
 {
-	ssize_t r, s = 0;
+	ssize_t want, r, s = 0;
 	struct dpkthdr *dpkthdr;
-	if ((r = read_dpkthdr(fd, buf, len)) == -1)
+	struct rtphdr *rtphdr;
+	if ((r = read_dpkthdr(fd, buf, DPKTHDRSIZE)) == 0)
+		return 0;
+	else if (r != DPKTHDRSIZE)
 		return -1;
-	dpkthdr = (struct dpkthdr*) buf;
 	s += r, len -= r;
-	if (len < dpkthdr->dlen - DPKTHDRSIZE) {
-		warnx("Buffer full");
+	dpkthdr = (struct dpkthdr*) buf;
+	want = dpkthdr->dlen - DPKTHDRSIZE;
+	if ((r = read(fd, buf + s, want)) != want) {
+		warnx("Error reading %zd bytes of RTP packet", want);
 		return -1;
 	}
-	if ((r = read(fd, buf+s, dpkthdr->dlen - DPKTHDRSIZE)) == -1)
-		return -1;
-	s += r, len -= r;
-	print_dpkthdr(dpkthdr);
+	rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
+	s += r, len -= r; /* that should be all */
+	/* FIXME bit fields */
+	rtphdr->seq  = ntohs(rtphdr->seq);
+	rtphdr->ts   = ntohl(rtphdr->ts);
+	rtphdr->ssrc = ntohl(rtphdr->ssrc);
+	/* FIXME csrc[] */
 	return s;
 }
 
