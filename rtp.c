@@ -261,7 +261,11 @@ dump2raw(int ifd, int ofd)
 	/* parse each captured packet in turn,
 	 * writing its payload to the output. */
 	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
-		pkt = (struct dpkthdr*) buf;
+		pkt = (struct dpkthdr*) (p = buf);
+		if (pkt->plen == 0) {
+			/*warnx("ignoring non-RTP packet in raw output");*/
+			continue;
+		}
 		if (verbose)
 			print_dpkthdr(pkt);
 		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
