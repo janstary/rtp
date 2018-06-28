@@ -67,7 +67,8 @@ static int verbose = 0;
 static void
 usage()
 {
-	fprintf(stderr, "%s [-v] [input] [output]\n", __progname);
+	fprintf(stderr, "%s [-v] [-i format] [-o format] [input] [output]\n",
+		__progname);
 }
 
 format_t
