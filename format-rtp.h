@@ -18,16 +18,26 @@
  */
 
 #include <stdint.h>
+#include "config.h"
 
 #define RTPVERSION 2
 
 struct rtphdr {
-	uint16_t	v:2;
-	uint16_t	p:1;
-	uint16_t	x:1;
-	uint16_t	cc:4;
-	uint16_t	m:1;
-	uint16_t	pt:7;
+#if HAVE_BIGENDIAN
+	uint8_t		v:2;
+	uint8_t		p:1;
+	uint8_t		x:1;
+	uint8_t		cc:4;
+	uint8_t		m:1;
+	uint8_t		pt:7;
+#else
+	uint8_t		cc:4;
+	uint8_t		p:1;
+	uint8_t		x:1;
+	uint8_t		v:2;
+	uint8_t		pt:7;
+	uint8_t		m:1;
+#endif
 	uint16_t	seq;
 	uint32_t	ts;
 	uint32_t	ssrc;

@@ -38,6 +38,8 @@ CFLAGS="${CFLAGS} -Wno-unused-parameter"
 LDFLAGS=
 LDADD=
 
+HAVE_BIGENDIAN=
+
 HAVE_ERR=
 HAVE_PROGNAME=
 HAVE_STRTONUM=
@@ -126,6 +128,9 @@ runtest() {
 
 # --- run the tests ---
 
+# system characteristics
+runtest bigendian	BIGENDIAN	|| true
+
 # functions
 runtest err		ERR		|| true
 runtest progname	PROGNAME	|| true
@@ -147,6 +152,8 @@ cat << __HEREDOC__
 __HEREDOC__
 
 cat << __HEREDOC__
+#define HAVE_BIGENDIAN ${HAVE_BIGENDIAN}
+
 #define HAVE_ERR ${HAVE_ERR}
 #define HAVE_PROGNAME ${HAVE_PROGNAME}
 #define HAVE_STRTONUM ${HAVE_STRTONUM}
