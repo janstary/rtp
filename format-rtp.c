@@ -6,15 +6,9 @@ print_rtphdr(struct rtphdr* rtphdr)
 {
 	if (rtphdr == NULL)
 		return;
-	fprintf(stderr, "\tts %u seq %u ssrc %#x\n",
-		rtphdr->ts, rtphdr->seq, rtphdr->ssrc);
-	/*
-	uint16_t	v:2;
-	uint16_t	p:1;
-	uint16_t	x:1;
-	uint16_t	cc:4;
-	uint16_t	m:1;
-	uint16_t	pt:7;
-	uint32_t	csrc[];
-	*/
+	fprintf(stderr, " %c version %u, ts %u, seq %u, ssrc %#x, pt %u%s%s\n",
+		rtphdr->m ? '*' : ' ', rtphdr->v,
+		rtphdr->ts, rtphdr->seq, rtphdr->ssrc, rtphdr->pt,
+		rtphdr->p ? ", padding" : "",
+		rtphdr->x ? ", extension" : "");
 }
