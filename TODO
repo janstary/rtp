@@ -1,5 +1,0 @@
-support also the other formats of rtptools (hex, header, ascii)
-stream to more than one output
-sighandlers
-support pcap as a format, have an example.pcap
-BUGS
