@@ -274,25 +274,22 @@ main(int argc, char** argv)
 	int ifd = STDIN_FILENO;
 	int ofd = STDOUT_FILENO;
 	unsigned char buf[BUFLEN];
-	struct format *fmt;
 
 	reader = NULL;
 	writer = NULL;
 
 	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
 		case 'i':
-			if (((fmt = getfmt(optarg))) == NULL) {
+			if (((ifmt = getfmt(optarg))) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
-			ifmt = fmt;
 			break;
 		case 'o':
-			if ((fmt = getfmt(optarg)) == NULL) {
+			if ((ofmt = getfmt(optarg)) == NULL) {
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
-			ofmt = fmt;
 			break;
 		case 'v':
 			break;
