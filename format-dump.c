@@ -111,7 +111,7 @@ read_dpkthdr(int fd, void *buf, size_t len)
 	dpkthdr->dlen = ntohs(dpkthdr->dlen);
 	dpkthdr->plen = ntohs(dpkthdr->plen);
 	dpkthdr->usec = ntohl(dpkthdr->usec);
-	return r;;
+	return r;
 }
 
 /* Read the next packet stored in a dump file into a buffer.

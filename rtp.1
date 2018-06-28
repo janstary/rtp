@@ -33,7 +33,7 @@ Both can be a named file or a network address.
 By default,
 .Nm
 reads from standard input and writes to standard output.
-A special name of
+A name of
 .Sq -
 also means standard input or output.
 A network address is given as
@@ -52,50 +52,79 @@ is a number.
 If the
 .Ar output
 is a local address
-(i.e. any IP address assigned to the local machine),
+(i.e. an address assigned to a network interface of the local machine),
 .Nm
 will wait till someone sends a one-byte message to that address
 and then will stream the input to them.
 Similarly, if the
 .Ar input
-is a remote address
-(i.e. any address not assigned to the local machine),
+is a remote address,
 .Nm
 will try to send a one-byte message first to let them know we are reading.
 For other combinations of input and output,
 .Nm
 behaves in the obvious way.
 .Pp
-The stream can be read or written in
-.Cm dump ,
-.Cm rtp ,
-.Cm raw
-or
-.Cm ascii
-format.
-For regular files, the format will be guessed from the file name suffix, i.e.
-.Dq dump ,
+The stream can be read or written in the following formats:
+.Bl -tag -width Ds
+.It Cm dump
+The format of the original rtptools (see below).
+A dump file starts with a txt line of the form
+.Dq #!rtptools1.0 addr/port ,
+followed by a dumpfile header:
+.Bd -literal
+struct dumphdr {
+	struct timeval32 {
+		uint32_t sec;
+		uint32_t usec;
+	}		start;
+	uint32_t	source;
+	uint16_t	port;
+	uint16_t	pad;
+};
+.Ed
+.Pp
+The actual RTP packets follow, each prefixed with:
+.Bd -literal
+struct dpkthdr {
+	uint16_t dlen; /* len of the dumped packet, with this   */
+	uint16_t plen; /* len of the original RTP hdr + payload */
+	uint32_t usec; /* dump time: usec since start */
+};
+.Ed
+.Pp
+If the payload was truncated during dump (see the
+.Fl x
+option),
+.\"FIXME
+dlen will be shorter than plen.
+The RTP header is always there.
+All vaiables are stored in the network byte order.
+.It Cm udp
+RTP packets inside UDP datagrams.
+For network inputs and outputs, this is the only format allowed.
+A local file can also be stored in this format
+(the RTP header does not specify the length of the payload,
+so it needs to be computed from UDP).
+.It Cm raw
+The actual audio payload of the RTP packet.
+This format can only be used as an output to a file.
+.Nm
+has no support for the actual audio
+and will not deal with the audio codec involved.
+.It Cm ascii
+RTP packets described with lines of text.
+.El
+.Pp
+For regular files, the format will be guessed from the file name suffix:
 .Dq rtp ,
+.Dq udp ,
 .Dq raw
 and
-.Dq ascii ,
+.Dq txt ,
 respectively, with
 .Cm dump
 being the default if the format cannot be guessed from the name.
-For network connections, only
-.Cm rtp
-or
-.Cm raw
-input can be used, and with a
-.Cm raw
-input, only
-.Cm raw
-output can be produced.
-The input and output format can be specified with the
-.Fl i
-and
-.Fl o
-options, respectively.
 .Pp
 The options are as follows.
 .Pp
@@ -118,7 +147,7 @@ Read from a dump file, stream as rtp to a remote location:
 Read rtp on a local port, write to an ascii file:
 .Dl $ rtp 192.168.1.1:1234 outfile.txt
 .Pp
-Read rtp on a local port, stream raw audio out on another port:
+Read rtp on a local port, stream it out on another port:
 .Dl $ rtp -o raw 192.168.1.1:1234 192.168.12.34:6666
 .Pp
 Read rtp on a local port, stream it to a remote location:
@@ -129,16 +158,12 @@ Read rtp from a remote location, write audio payload to stdout:
 .Sh HISTORY
 In the early days of RTP, Henning Schulzrinne wrote a set of
 .Dq rtptools
-to debug RTP sessions on packet level.
-This is a complete rewrite, supporting the rtptools dump format
-for backwards compatibility.
-.Pp
-Reading a local file and streaming it to a remote location
-is what rtpplay and rtpsend does.
-Reading a local port and dumping it to a file
-is what rtpdump does.
-Reading from an address and streaming to another address
-is what rtptrans does.
+to debug RTP sessions;
+.Nm
+is a replacement, written from scratch.
+Reading a local port and dumping it to a file is rtpdump.
+Streaming a file to a remote location is rtpplay and rtpsend.
+Reading from an address and streaming to another address is rtptrans.
 .Sh AUTHORS
 .An Jan Starý Aq Mt hans@stare.cz
 .Sh BUGS

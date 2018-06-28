@@ -20,14 +20,14 @@ MAN1 =	rtp.1
 
 OBJS =	rtp.o		\
 	format-dump.o	\
-	format-rtp.o
+	format-udp.o
 
 SRCS =	rtp.c		\
 	rtp.h		\
 	format-dump.c	\
 	format-dump.h	\
-	format-rtp.c	\
-	format-rtp.h	\
+	format-udp.c	\
+	format-udp.h	\
 
 HAVE_SRCS =	have-err.c   have-progname.c   have-strtonum.c
 COMPAT_SRCS =	compat-err.c compat-progname.c compat-strtonum.c

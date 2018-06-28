@@ -21,7 +21,7 @@
 #include <stdint.h>
 
 struct dumphdr {
-	struct timeval32 {
+	struct {
 		uint32_t sec;
 		uint32_t usec;
 	}		start;

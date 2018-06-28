@@ -30,9 +30,7 @@
 #include <netdb.h>
 
 #include "format-dump.h"
-#include "format-rtp.h"
-
-#include "rtp.h"
+#include "format-udp.h"
 
 #define BUFLEN 2048
 
@@ -50,14 +48,15 @@ ssize_t write_ascii (int fd, void *buf, size_t len);
 
 struct format {
 	const char *name;
+	const char *suff;
 	ssize_t (*reader)(int fd, void *buf, size_t len);
 	ssize_t (*writer)(int fd, void *buf, size_t len);
 } formats[] = {
-	{ "dump",	read_dump,	write_dump  },
-	{ "rtp",	read_rtp,	write_rtp   },
-	{ "raw",	read_raw,	write_raw   },
-	{ "ascii",	read_ascii,	write_ascii },
-	{ NULL,		NULL,		NULL        }
+	{ "dump",	"rtp",	read_dump,	write_dump  },
+	{ "udp",	"udp",	read_udp,	write_udp   },
+	{ "raw",	"raw",	read_raw,	write_raw   },
+	{ "ascii",	"txt",	read_ascii,	write_ascii },
+	{ NULL,		NULL,	NULL,		NULL        }
 };
 
 #define FORMAT_DUMP  (&(formats[0]))

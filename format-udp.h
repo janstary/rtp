@@ -14,19 +14,22 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
-#include <sys/types.h>
+/*
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <ctype.h>
+#include <stdio.h>
+#include <errno.h>
+#include <err.h>
 
-#include "format-rtp.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <netdb.h>
+*/
 
-ssize_t
-read_rtp(int fd, void *buf, size_t len)
-{
-	return read(fd, buf, len);
-}
-
-ssize_t
-write_rtp(int fd, void *buf, size_t len)
-{
-	return write(fd, buf, len);
-}
+ssize_t read_udp    (int fd, void *buf, size_t len);
+ssize_t write_udp   (int fd, void *buf, size_t len);
