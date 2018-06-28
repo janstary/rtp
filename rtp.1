@@ -11,7 +11,7 @@
 .\" WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 .\" ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 .\" OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
-.Dd June 26, 2018
+.Dd June 28, 2018
 .Dt RTP 1
 .Os
 .Sh NAME
@@ -21,6 +21,7 @@
 .Nm
 .Op Fl i Ar format
 .Op Fl o Ar format
+.Op Fl v
 .Op input
 .Op output
 .Sh DESCRIPTION
@@ -140,9 +141,11 @@ The options are as follows.
 .Pp
 .Bl -tag -compact -width formatxxx
 .It Fl i Ar format
-The format of input.
+Set the input format.
 .It Fl o Ar format
-The format of output.
+Set the output format.
+.It Fl v
+Be verbose.
 .El
 .Sh EXAMPLES
 Read from a dump file, write the raw audio payload:
