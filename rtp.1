@@ -119,7 +119,7 @@ This format can only be used as an output to a file.
 .Nm
 has no support for the actual audio
 and will not deal with the audio codec involved.
-.It Cm ascii
+.It Cm txt
 RTP packets described with lines of text.
 .El
 .Pp
@@ -133,7 +133,7 @@ for
 and
 .Dq txt
 for
-.Cm ascii ,
+.Cm txt ,
 with
 .Cm dump
 being the default if the format cannot be guessed from the name.
@@ -163,7 +163,7 @@ Read from a dump file, stream as rtp to a remote location:
 .Pp
 .Dl $ rtp session.rtp far.away.com:1234
 .Pp
-Read rtp on a local port, write to an ascii file:
+Read rtp on a local port, save a textual description:
 .Pp
 .Dl $ rtp 192.168.1.1:1234 outfile.txt
 .Pp
