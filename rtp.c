@@ -265,6 +265,8 @@ dump2net(int ifd, int ofd)
 		}
 		if (verbose)
 			print_rtphdr(rtp);
+		if (pkt->plen == 0)
+			continue;
 		if ((w = send(ofd, rtp, pkt->plen, 0)) == -1) {
 			warnx("Error sending %u bytes of RTP", pkt->plen);
 			error = -1;
