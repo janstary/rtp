@@ -219,12 +219,27 @@ Similarly, with
 the first one will wait for an input connection,
 and the second will make that connection,
 treating 192.168.1.1 as a remote address.
+.Pp
+The following will set up a tunnel, a reader, and a writer:
+.Pp
+.Dl $ rtp    127.0.0.1:1234 127.0.0.1:3456
+.Dl $ rtp -r 127.0.0.1:3456 session.raw
+.Dl $ rtp -r session.rtp 127.0.0.1:1234
+.Pp
+The first instance (the tunnel) will wait for a connection to port 3456,
+and then will read whatever arrives at 1234 and stream it out.
+The second instance (the reader) will connect to 3456
+(treating 127.0.0.1 as a remote address), waiting to read.
+The third instance (the writer) will connect to 1234
+(treating 127.0.0.1 as a remote address),
+and will stream the content of the dump file there,
+starting the pipeline flow.
 .Sh HISTORY
 In the early days of RTP, Henning Schulzrinne wrote a set of
 .Dq rtptools
 to debug RTP sessions;
 .Nm
-is a replacement, written from scratch.
+aims to replace rtptools.
 Reading a local port and dumping it to a file is rtpdump.
 Streaming a file to a remote location is rtpplay and rtpsend.
 Reading from an address and streaming to another address is rtptrans.
