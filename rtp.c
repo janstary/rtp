@@ -34,6 +34,8 @@
 #include "format-rtp.h"
 
 #define BUFLEN 8192
+/* FIXME: This should be enough for each and every packet we read,
+ * but we are still wrong: mind the buflen in the reading routines. */
 
 extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
@@ -58,11 +60,10 @@ struct format {
 	{ FORMAT_NONE,	NULL,	NULL	}
 };
 
-format_t ifmt = FORMAT_NONE;
-format_t ofmt = FORMAT_NONE;
-int (*convert)(int ifd, int ofd);
-
 static int verbose = 0;
+static format_t ifmt = FORMAT_NONE;
+static format_t ofmt = FORMAT_NONE;
+static int (*convert)(int ifd, int ofd) = NULL;
 
 static void
 usage()
@@ -91,16 +92,6 @@ fmtbysuff(const char *suff)
 	return FORMAT_NONE;
 }
 
-/*
-void
-print_addr(const char* msg, struct sockaddr_in* a)
-{
-	if (a == NULL)
-		return;
-	printf("%s %s:%d\n", msg, inet_ntoa(a->sin_addr), ntohs(a->sin_port));
-}
-*/
-
 int
 islocal(struct sockaddr_in *a)
 {
@@ -112,9 +103,9 @@ islocal(struct sockaddr_in *a)
 	return 0;
 }
 
-/* Open the input for reading, or the output for writing.
- * Return a file descriptor the convertor can read from or write to, or -1.
- * Based on the type of input/output, set the input/output format if not set. */
+/* Open a path for reading or writing (the flags say which).
+ * Return a file descriptor the convertor can read/recv from or write/sent to,
+ * or -1 for failure. Also, set the input/output format, if not set alrady. */
 int
 rtpopen(const char *path, int flags)
 {
@@ -162,6 +153,7 @@ rtpopen(const char *path, int flags)
 			warn("socket");
 			goto bad;
 		}
+		/* FIXME setsockopt */
 		if (islocal(a = (struct sockaddr_in*) res->ai_addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
@@ -173,8 +165,8 @@ rtpopen(const char *path, int flags)
 			}
 			if (flags & O_CREAT) {
 				/* If this local address is an output,
-			 	 * wait till someone sends something here,
-		         	 * to let us know where to write later. */
+				 * wait till we recvfrom() something first,
+				 * to let us know where to send() later. */
 				char b[2];
 				socklen_t len;
 				struct sockaddr r;
@@ -193,7 +185,7 @@ rtpopen(const char *path, int flags)
 			if (!(flags & O_CREAT)) {
 				/* If the remote address is our input,
 			 	 * send a byte there to let them know
-				 * where to write later. */
+				 * where to send(2) later. */
 				char b[2] = "1";
 				if (send(fd, b, 1, 0) != 1) {
 					warn("send");
@@ -226,6 +218,7 @@ rtpopen(const char *path, int flags)
 		}
 		if ((p = strrchr(path, '.')))
 			fmt = fmtbysuff(++p);
+		/* Stay compatible with rtptools */
 		if ((flags & O_CREAT) && (ofmt == FORMAT_NONE)) {
 			ofmt = fmt ? fmt : FORMAT_TXT;
 		} else if (ifmt == FORMAT_NONE) {
@@ -239,7 +232,7 @@ bad:
 	return -1;
 }
 
-/* Read a dump file from ifd, send the RTP to ofd via net.
+/* Read a dump file from input, send the RTP output via net.
  * Return 0 for success, -1 for error. */
 int
 dump2net(int ifd, int ofd)
@@ -248,9 +241,9 @@ dump2net(int ifd, int ofd)
 	struct dpkthdr *pkt;
 	unsigned char buf[BUFLEN];
 	ssize_t s, w;
-	int e = 0;
+	int error = 0;
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
-		warnx("Invalid dump file header");
+		warnx("Invalid dump line");
 		return -1;
 	}
 	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
@@ -263,24 +256,26 @@ dump2net(int ifd, int ofd)
 			print_dpkthdr(pkt);
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if (parse_rtphdr(rtp) == -1) {
-			e = -1;
 			warnx("Error parsing RTP header");
+			error = -1;
 			continue;
 		}
 		if (verbose)
 			print_rtphdr(rtp);
 		if ((w = send(ofd, rtp, pkt->plen, 0)) == -1) {
 			warnx("Error sending %u bytes of RTP", pkt->plen);
-			e = -1;
+			error = -1;
+			continue;
 		} else if (w < pkt->plen) {
-			warnx("Only sent %zd < %u bytes of RTP",w, pkt->plen);
-			e = -1;
+			warnx("Only sent %zd < %u bytes of RTP", w, pkt->plen);
+			error = -1;
+			continue;
 		}
 	}
-	return s == -1 ? -1 : e;
+	return s == -1 ? -1 : error;
 }
 
-/* Read a dump file from ifd, write raw audio payload to ofd.
+/* Read a dump file from input, write raw audio payload to output.
  * Return 0 for success, -1 for error. */
 int
 dump2raw(int ifd, int ofd)
@@ -290,9 +285,9 @@ dump2raw(int ifd, int ofd)
 	unsigned char buf[BUFLEN];
 	unsigned char *p = buf;
 	ssize_t s, w, hlen;
-	int e = 0;
+	int error = 0;
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
-		warnx("Invalid dump file header");
+		warnx("Invalid dump line");
 		return -1;
 	}
 	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
@@ -311,8 +306,8 @@ dump2raw(int ifd, int ofd)
 		}
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if ((hlen = parse_rtphdr(rtp)) == -1) {
-			e = -1;
 			warnx("Error parsing RTP header");
+			error = -1;
 			continue;
 		}
 		if (verbose)
@@ -321,13 +316,15 @@ dump2raw(int ifd, int ofd)
 		s -= DPKTHDRSIZE + hlen;
 		if ((w = write(ofd, p, s)) == -1) {
 			warnx("Error writing %zd bytes of payload", s);
-			e = -1;
+			error = -1;
+			continue;
 		} else if (w < s) {
 			warnx("Only wrote %zd < %zd bytes of payload", w, s);
-			e = -1;
+			error = -1;
+			continue;
 		}
 	}
-	return s == -1 ? -1 : e;
+	return s == -1 ? -1 : error;
 }
 
 int
@@ -345,13 +342,13 @@ net2raw(int ifd, int ofd)
 	unsigned char buf[BUFLEN];
 	struct rtphdr *rtp;
 	ssize_t s, w, hlen;
-	int e = 0;
+	int error = 0;
 	while ((s = recv(ifd, buf, BUFLEN, 0)) > 0) {
 		if (verbose)
 			fprintf(stderr, "%zd bytes of RTP received\n", s);
 		rtp = (struct rtphdr*) (p = buf);
 		if ((hlen = parse_rtphdr(rtp)) == -1) {
-			e = -1;
+			error = -1;
 			warnx("Error parsing RTP header");
 			continue;
 		}
@@ -361,13 +358,13 @@ net2raw(int ifd, int ofd)
 		s -= hlen;
 		if ((w = write(ofd, p, s)) == -1) {
 			warnx("Error writing %zd bytes of payload", s);
-			e = -1;
+			error = -1;
 		} else if (w < s) {
 			warnx("Only wrote %zd < %zd bytes of payload", w, s);
-			e = -1;
+			error = -1;
 		}
 	}
-	return s == -1 ? -1 : e;
+	return s == -1 ? -1 : error;
 }
 
 int
@@ -408,21 +405,21 @@ main(int argc, char** argv)
 
 	if (getifaddrs(&ifaces) == -1)
 		err(1, NULL);
-	if (-1 == (ifd = *argv
+	if (-1 == (ifd = (*argv
 	? rtpopen(*argv++, O_RDONLY)
-	: rtpopen("-",     O_RDONLY))) {
+	: rtpopen("-",     O_RDONLY)))) {
 		warnx("Cannot open input for reading");
 		return -1;
 	}
-	if (-1 == (ofd = *argv
+	if (-1 == (ofd = (*argv
 	? rtpopen(*argv++, O_WRONLY|O_CREAT|O_TRUNC)
-	: rtpopen("-",     O_WRONLY|O_CREAT|O_TRUNC))) {
+	: rtpopen("-",     O_WRONLY|O_CREAT|O_TRUNC)))) {
 		warnx("Cannot open output for writing");
 		return -1;
 	}
 	freeifaddrs(ifaces);
 
-	/* FIXME: remaining combinations */
+	/* FIXME: consider all cases */
 	if (ifmt == FORMAT_NONE) {
 		warnx("Input format not determined");
 	} else if (ifmt == FORMAT_DUMP) {
