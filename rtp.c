@@ -60,6 +60,7 @@ struct format {
 	{ FORMAT_NONE,	NULL,	NULL	}
 };
 
+static int remote = 0;
 static int verbose = 0;
 static format_t ifmt = FORMAT_NONE;
 static format_t ofmt = FORMAT_NONE;
@@ -96,6 +97,8 @@ int
 islocal(struct sockaddr_in *a)
 {
 	struct ifaddrs *i;
+	if (remote)
+		return 0;
 	for (i = ifaces; i; i = i->ifa_next)
          	if (a->sin_addr.s_addr ==
 		((struct sockaddr_in*)i->ifa_addr)->sin_addr.s_addr)
@@ -374,7 +377,7 @@ main(int argc, char** argv)
 	int ifd = STDIN_FILENO;
 	int ofd = STDOUT_FILENO;
 
-	while ((c = getopt(argc, argv, "i:o:v")) != -1) switch (c) {
+	while ((c = getopt(argc, argv, "i:o:rv")) != -1) switch (c) {
 		case 'i':
 			if (((ifmt = fmtbyname(optarg))) == FORMAT_NONE) {
 				warnx("unknown format: %s", optarg);
@@ -386,6 +389,9 @@ main(int argc, char** argv)
 				warnx("unknown format: %s", optarg);
 				return -1;
 			}
+			break;
+		case 'r':
+			remote = 1;
 			break;
 		case 'v':
 			verbose = 1;
