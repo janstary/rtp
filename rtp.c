@@ -342,6 +342,38 @@ dump2txt(int ifd, int ofd)
 	return 0;
 }
 
+/* Read RTP packets from the ifd, write RTP packets to ofd.
+ * No timing is considered here: write them as you read them.
+ * Return 0 for success, -1 for error. */
+int
+net2net(int ifd, int ofd)
+{
+	ssize_t s, w;
+	int error = 0;
+	struct rtphdr *rtp;
+	unsigned char buf[BUFLEN];
+	while ((s = recv(ifd, buf, BUFLEN, 0)) > 0) {
+		if (verbose)
+			fprintf(stderr, "%zd bytes of RTP received\n", s);
+		rtp = (struct rtphdr*) buf;
+		if (parse_rtphdr(rtp) == -1) {
+			error = -1;
+			warnx("Error parsing RTP header");
+			continue;
+		}
+		if (verbose)
+			print_rtphdr(rtp);
+		if ((w = write(ofd, buf, s)) == -1) {
+			warnx("Error writing %zd bytes of payload", s);
+			error = -1;
+		} else if (w < s) {
+			warnx("Only wrote %zd < %zd bytes of payload", w, s);
+			error = -1;
+		}
+	}
+	return s == -1 ? -1 : error;
+}
+
 /* Read RTP packets from the ifd, write raw audio payload to ofd.
  * Return 0 for success, -1 for error. */
 int
@@ -445,7 +477,9 @@ main(int argc, char** argv)
 			convert = dump2txt;
 		}
 	} else if (ifmt == FORMAT_NET) {
-		if (ofmt == FORMAT_RAW) {
+		if (ofmt == FORMAT_NET) {
+			convert = net2net;
+		} else if (ofmt == FORMAT_RAW) {
 			convert = net2raw;
 		}
 	} else if (ifmt == FORMAT_RAW) {
