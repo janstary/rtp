@@ -1,4 +1,6 @@
+#include <arpa/inet.h>
 #include <stdio.h>
+
 #include "format-rtp.h"
 
 void
@@ -7,8 +9,8 @@ print_rtphdr(struct rtphdr* rtp)
 	if (rtp == NULL)
 		return;
 	fprintf(stderr, " %c version %u, ts %u, seq %u, ssrc %#x, pt %u\n",
-		rtp->m ? '*' : ' ', rtp->v, rtp->ts,
-		rtp->seq, rtp->ssrc, rtp->pt);
+		rtp->m ? '*' : ' ', rtp->v, ntohs(rtp->ts),
+		ntohs(rtp->seq), ntohs(rtp->ssrc), rtp->pt);
 	if (rtp->cc) {
 		fprintf(stderr, "   (sources: ");
 		for (unsigned c = 0; c < rtp->cc; c++) {
@@ -17,6 +19,7 @@ print_rtphdr(struct rtphdr* rtp)
 	}
 	/* FIXME pad rtp->p */
 	/* FIXME ext rtp->x */
+	/* FIXME csrc's */
 }
 
 /* Parse a RTP header, return size, or -1 for error. */

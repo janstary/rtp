@@ -14,7 +14,9 @@
  * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
  */
 
+#include <arpa/inet.h>
 #include <sys/types.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -23,50 +25,61 @@
 #include "format-dump.h"
 #include "format-rtp.h"
 
-/* Read over the DUMPLINE
- * Check that the version is there, ignore the addr/port.
- * Return bytes read, or -1 on error. */
+/* Read and ignore the DUMPLINE.
+ * Check that the version string is there.
+ * Return 0 on success, or -1 on error. */
 ssize_t
 read_dumpline(int fd, void *buf, size_t len)
 {
 	char p;
-	ssize_t r;
 	if ((read(fd, buf, DUMPLINELEN) != DUMPLINELEN)
 	||  (strncmp(buf, DUMPLINE, DUMPLINELEN) != 0)
 	||  (strncmp(buf+9, "1.0", 3) != 0)) {
-		warnx("Invalid dump line");
 		return -1;
 	}
-	r = DUMPLINELEN;
 	while (read(fd, &p, 1) == 1) {
-		r++;
 		if (p == '\n')
 			break;
 	}
 	if (p != '\n') {
-		warnx("Invalid dump file header");
 		return -1;
 	}
-	return r;
+	return 0;
+}
+
+/* Write the DUMPLINE, with a zero addr/port.
+ * Return bytes written, or -1 on error. */
+ssize_t
+write_dumpline(int fd)
+{
+#define LINE "#!rtpplay1.0 0.0.0.0/0\n"
+#define LINELEN strlen(LINE)
+	if (write(fd, LINE, LINELEN) != LINELEN)
+		return -1;
+	return LINELEN;
 }
 
 void
-print_dumphdr(struct dumphdr *dumphdr)
+print_dumphdr(struct dumphdr *hdr)
 {
-	if (dumphdr == NULL)
+	struct in_addr a;
+	if (hdr == NULL)
 		return;
-	fprintf(stderr, "dump starts on %u:%u\n",
-		dumphdr->time.sec, dumphdr->time.usec);
+	a.s_addr = hdr->addr;
+	fprintf(stderr, "dump of %s:%d starts on %u:%u\n",
+		inet_ntoa(a), ntohs(hdr->port),
+		ntohl(hdr->time.sec), ntohl(hdr->time.usec));
 }
 
-/* Read the global binary dumphdr.
+/* Read the global binary dumphdr from a file,
+ * converting the values to local byte order.
  * Return bytes read, or -1 on error. */
 ssize_t
 read_dumphdr(int fd, void *buf, size_t len)
 {
 	struct dumphdr *dumphdr = (struct dumphdr*) buf;
 	if (read(fd, buf, DUMPHDRSIZE) != DUMPHDRSIZE) {
-		warnx("Broken dump header");
+		warnx("Error reading dump file header");
 		return -1;
 	}
 	dumphdr->time.sec = ntohl(dumphdr->time.sec);
@@ -76,6 +89,30 @@ read_dumphdr(int fd, void *buf, size_t len)
 	return DUMPHDRSIZE;
 }
 
+/* Write the global binary dumphdr into a file,
+ * converting the values to network byte order.
+ * Return bytes written, or -1 on error. */
+ssize_t
+write_dumphdr(int fd)
+{
+	struct timeval tv;
+	struct dumphdr hdr;
+	if (gettimeofday(&tv, NULL) == -1) {
+		warn("gettimeofday");
+		return -1;
+	}
+	hdr.time.sec = htonl(tv.tv_sec);
+	hdr.time.usec = htonl(tv.tv_usec);
+	hdr.addr = htonl(0);
+	hdr.port = htons(0);
+	if (write(fd, &hdr, DUMPHDRSIZE) != DUMPHDRSIZE) {
+		warnx("Error writing dump header");
+		return -1;
+	}
+	return DUMPHDRSIZE;
+}
+
+/* Print a captured packet header. */
 void
 print_dpkthdr(struct dpkthdr *dpkthdr)
 {
@@ -90,13 +127,16 @@ print_dpkthdr(struct dpkthdr *dpkthdr)
 	}
 }
 
+/* Read a captured packet header from a file,
+ * converting values to the local byte order.
+ * Return bytes read, or -1 on error. */
 ssize_t
 read_dpkthdr(int fd, void *buf, size_t len)
 {
 	ssize_t r = 0;
 	struct dpkthdr *dpkthdr;
 	if (len < DPKTHDRSIZE) {
-		warnx("Bufer full");
+		warnx("Buffer full");
 		return -1;
 	}
 	if ((r = read(fd, buf, DPKTHDRSIZE)) == 0) {
@@ -112,34 +152,47 @@ read_dpkthdr(int fd, void *buf, size_t len)
 	return r;
 }
 
+/* Write a captured packet header into a file,
+ * converting the values to network byte order.
+ * Return bytes written, or -1 on error. */
+ssize_t
+write_dpkthdr(int fd, void *buf, size_t len)
+{
+	ssize_t w = 0;
+	struct dpkthdr *hdr = buf;
+	hdr->dlen = htons(hdr->dlen);
+	hdr->plen = htons(hdr->plen);
+	hdr->usec = htonl(1234); /* FIXME */
+	if ((w = write(fd, buf, DPKTHDRSIZE)) != DPKTHDRSIZE) {
+		warnx("Error writing packet header");
+		return -1;
+	}
+	return w;
+}
+
 /* Read record from a dump file into a buffer.
  * This means the dpkthdr, the rtphdr, and the payload (as much as stored).
  * Return bytes read, or -1 on error. */
 ssize_t
 read_dump(int fd, void *buf, size_t len)
 {
-	ssize_t want, r, s = 0;
+	ssize_t want, r, have = 0;
 	struct dpkthdr *dpkthdr;
 	struct rtphdr *rtphdr;
 	if ((r = read_dpkthdr(fd, buf, DPKTHDRSIZE)) == 0)
 		return 0;
 	else if (r != DPKTHDRSIZE)
 		return -1;
-	s += r, len -= r;
+	have += r, len -= r;
 	dpkthdr = (struct dpkthdr*) buf;
 	want = dpkthdr->dlen - DPKTHDRSIZE;
-	if ((r = read(fd, buf + s, want)) != want) {
+	if ((r = read(fd, buf + have, want)) != want) {
 		warnx("Error reading %zd bytes of RTP packet", want);
 		return -1;
 	}
 	rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
-	s += r, len -= r; /* that should be all */
-	/* FIXME bit fields */
-	rtphdr->seq  = ntohs(rtphdr->seq);
-	rtphdr->ts   = ntohl(rtphdr->ts);
-	rtphdr->ssrc = ntohl(rtphdr->ssrc);
-	/* FIXME csrc[] */
-	return s;
+	have += r, len -= r;
+	return have;
 }
 
 ssize_t

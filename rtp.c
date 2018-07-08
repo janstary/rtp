@@ -41,11 +41,11 @@ extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
 
 typedef enum {
-	FORMAT_NONE,
 	FORMAT_DUMP,
 	FORMAT_NET,
 	FORMAT_RAW,
-	FORMAT_TXT
+	FORMAT_TXT,
+	FORMAT_NONE
 } format_t;
 
 struct format {
@@ -221,11 +221,11 @@ rtpopen(const char *path, int flags)
 		}
 		if ((p = strrchr(path, '.')))
 			fmt = fmtbysuff(++p);
-		/* Stay compatible with rtptools */
+		/* Be compatible with rtptools */
 		if ((flags & O_CREAT) && (ofmt == FORMAT_NONE)) {
-			ofmt = fmt ? fmt : FORMAT_TXT;
+			ofmt = (fmt != FORMAT_NONE) ? fmt : FORMAT_TXT;
 		} else if (ifmt == FORMAT_NONE) {
-			ifmt = fmt ? fmt : FORMAT_DUMP;
+			ifmt = (fmt != FORMAT_NONE) ? fmt : FORMAT_DUMP;
 		}
 	}
 	return fd;
@@ -236,28 +236,32 @@ bad:
 }
 
 /* Read a dump file from input, send the RTP output via net.
+ * FIXME: mind the timing, as opposed to sending as you read.
  * Return 0 for success, -1 for error. */
 int
 dump2net(int ifd, int ofd)
 {
-	struct rtphdr *rtp;
-	struct dpkthdr *pkt;
-	unsigned char buf[BUFLEN];
-	ssize_t s, w;
+	ssize_t r, w;
 	int error = 0;
+	struct dumphdr hdr;
+	struct dpkthdr *pkt;
+	struct rtphdr  *rtp;
+	unsigned char buf[BUFLEN];
 	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
-		warnx("Invalid dump line");
+		warnx("Error reading dump file line");
 		return -1;
 	}
-	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
-		warnx("Invalid dump file header");
+	if (read_dumphdr(ifd, &hdr, DUMPHDRSIZE) == -1) {
+		warnx("Error reading %zd bytes of dump header", DUMPHDRSIZE);
 		return -1;
 	}
-	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
+	if (verbose)
+		print_dumphdr(&hdr);
+	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
+		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if (verbose)
 			print_dpkthdr(pkt);
-		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if (parse_rtphdr(rtp) == -1) {
 			warnx("Error parsing RTP header");
 			error = -1;
@@ -280,8 +284,9 @@ dump2net(int ifd, int ofd)
 			error = -1;
 			continue;
 		}
+		sleep(1); /* FIXME: propper timing as per rtp->ts */
 	}
-	return s == -1 ? -1 : error;
+	return r == -1 ? -1 : error;
 }
 
 /* Read a dump file from input, write raw audio payload to output.
@@ -342,7 +347,56 @@ dump2txt(int ifd, int ofd)
 	return 0;
 }
 
-/* Read RTP packets from the ifd, write RTP packets to ofd.
+/* Read RTP packets from the net, write a dump file.
+ * Return 0 for success, -1 for error. */
+int
+net2dump(int ifd, int ofd)
+{
+	ssize_t r, w;
+	int error = 0;
+	struct rtphdr *rtp;
+	struct dpkthdr hdr;
+	unsigned char buf[BUFLEN];
+	if (write_dumpline(ofd) == -1) {
+		warnx("Error writing dump line");
+		return -1;
+	}
+	if (write_dumphdr(ofd) == -1) {
+		warnx("Error writing dump header");
+		return -1;
+	}
+	while ((r = recv(ifd, buf, BUFLEN, 0)) > 0) {
+		if (verbose)
+			fprintf(stderr, "%zd bytes of RTP received\n", r);
+		rtp = (struct rtphdr*) buf;
+		if (parse_rtphdr(rtp) == -1) {
+			warnx("Error parsing RTP header");
+			error = -1;
+			continue;
+		}
+		if (verbose)
+			print_rtphdr(rtp);
+		hdr.plen = r;
+		hdr.dlen = r + DPKTHDRSIZE;
+		if (verbose)
+			print_dpkthdr(&hdr);
+		if ((w = write_dpkthdr(ofd, &hdr, DPKTHDRSIZE)) == -1) {
+			warnx("Error writing dump packet header");
+			error = -1;
+			continue;
+		}
+		/* TODO: -s size of RTP to save */
+		if ((w = write(ofd, buf, r)) != r) {
+			warnx("Error writing %zd bytes of RTP", r);
+			error = -1;
+			continue;
+		}
+	}
+	fprintf(stderr, "read %zd bytes\n", r);
+	return r == -1 ? -1 : error;
+}
+
+/* Read RTP packets from the net, write RTP packets to the net.
  * No timing is considered here: write them as you read them.
  * Return 0 for success, -1 for error. */
 int
@@ -409,6 +463,12 @@ net2raw(int ifd, int ofd)
 }
 
 int
+net2txt(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
 main(int argc, char** argv)
 {
 	int c;
@@ -463,12 +523,11 @@ main(int argc, char** argv)
 	}
 	freeifaddrs(ifaces);
 
-	/* FIXME: consider all cases */
 	if (ifmt == FORMAT_NONE) {
 		warnx("Input format not determined");
 	} else if (ifmt == FORMAT_DUMP) {
 		if (ofmt == FORMAT_DUMP) {
-			warnx("No point cnverting dump to dump.");
+			warnx("No point converting dump to dump.");
 		} else if (ofmt == FORMAT_NET) {
 			convert = dump2net;
 		} else if (ofmt == FORMAT_RAW) {
@@ -477,10 +536,14 @@ main(int argc, char** argv)
 			convert = dump2txt;
 		}
 	} else if (ifmt == FORMAT_NET) {
-		if (ofmt == FORMAT_NET) {
+		if (ofmt == FORMAT_DUMP) {
+			convert = net2dump;
+		} else if (ofmt == FORMAT_NET) {
 			convert = net2net;
 		} else if (ofmt == FORMAT_RAW) {
 			convert = net2raw;
+		} else if (ofmt == FORMAT_TXT) {
+			convert = net2txt;
 		}
 	} else if (ifmt == FORMAT_RAW) {
 		warnx("Only output can be raw");

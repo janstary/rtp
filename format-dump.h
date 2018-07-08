@@ -42,6 +42,7 @@ struct dpkthdr {
 #define DUMPHDRSIZE sizeof(struct dumphdr)
 #define DPKTHDRSIZE sizeof(struct dpkthdr)
 
+void	print_dumphdr	(struct dumphdr*);
 void	print_dpkthdr	(struct dpkthdr*);
 
 ssize_t	read_dumpline	(int, void*, size_t);
@@ -49,4 +50,7 @@ ssize_t	read_dumphdr	(int, void*, size_t);
 ssize_t	read_dpkthdr	(int, void*, size_t);
 ssize_t	read_dump	(int, void*, size_t);
 
+ssize_t	write_dumpline	(int);
+ssize_t	write_dumphdr	(int);
+ssize_t	write_dpkthdr	(int, void*, size_t);
 ssize_t	write_dump	(int, void*, size_t);
