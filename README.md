@@ -41,6 +41,9 @@ GNU `auto*`tools horror. The actual features of the system
 are tested with the `have-*.c` tests, and the missing
 functionality is provided in `compat-*.c`.
 
+If the autodetection fails on your system, write a `configure.local`;
+see `configure.local.example` for what can be tweaked.
+
 Currently, `rtp` is tested on the following platforms:
 
 * OpenBSD 6.3 @ amd64
