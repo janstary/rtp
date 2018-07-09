@@ -2,7 +2,7 @@
 
 The `rtp` tool reads and writes RTP sessions.
 It uses the same dump format as 
-[https://github.com/columbia-irt/rtptools](rtptools)
+[rtptools](https://github.com/columbia-irt/rtptools)
 which it aims to replace.
 
 ## historical context
