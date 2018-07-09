@@ -138,13 +138,15 @@ rtpopen(const char *path, int flags)
 			warnx("%s is not a valid port number", p);
 			return -1;
 		}
+		if (*path == '\0')
+			path = NULL;
 		memset(&info, 0, sizeof(info));
 		info.ai_family = PF_INET;
 		info.ai_socktype = SOCK_DGRAM;
 		info.ai_protocol = IPPROTO_UDP;
 		info.ai_flags = AI_ADDRCONFIG | AI_NUMERICSERV;
 		if ((e = getaddrinfo(path, p, &info, &res))) {
-			warnx("%s", gai_strerror(e));
+			warnx("'%s': %s", path, gai_strerror(e));
 			return -1;
 		}
 		if (res == NULL) {
