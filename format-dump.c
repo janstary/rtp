@@ -120,7 +120,7 @@ print_dpkthdr(struct dpkthdr *dpkthdr)
 		return;
 	fprintf(stderr, "%08u ", dpkthdr->usec);
 	if (dpkthdr->plen) {
-		fprintf(stderr, "RTP  %u bytes (%lu captured)\n",
+		fprintf(stderr, "RTP  %u bytes (%u captured)\n",
 			dpkthdr->plen, dpkthdr->dlen - DPKTHDRSIZE);
 	} else {
 		fprintf(stderr, "RTCP\n");
