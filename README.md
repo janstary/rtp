@@ -33,7 +33,7 @@ $ man rtp
 Long version: `rtp` tries to be very portable.
 The `./configure` script will configure the build for your machine,
 producing `config.log`, `config.h` and `Makefile.local`.
-Inspect them to see of they contaion what you would expect.
+Inspect them to see if they contain what you expect.
 
 Note that `./configure` is written by hand (mostly stolen from
 [mandoc](http://mandoc.bsd.lv/), actually) and avoids the
