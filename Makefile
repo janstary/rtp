@@ -74,8 +74,7 @@ lint: $(MAN1)
 	mandoc -Tlint -Wstyle $(MAN1)
 
 test: $(BINS)
-	./rtp session.rtp session.raw
-	./rtp session.rtp session.txt
+	./rtp -v session.rtp session.raw
 
 Makefile.local config.h: configure $(HAVESRCS)
 	@echo "$@ is out of date; please run ./configure"
