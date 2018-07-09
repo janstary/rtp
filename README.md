@@ -49,6 +49,7 @@ Currently, `rtp` is tested on the following platforms:
 * OpenBSD 6.3 @ amd64
 * OpenBSD 6.3 @ macppc
 * OpenBSD 6.3 @ armv7
+* SunOS 5.11 @ sparc
 * MacOS 10.13 @ x64
 * Debian 7.11 @ x64
 * Gentoo 2.4.1 @ x64
