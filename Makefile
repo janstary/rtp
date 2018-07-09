@@ -20,14 +20,11 @@ MAN1 =	rtp.1
 
 OBJS =	rtp.o		\
 	format-dump.o	\
-	format-net.o	\
 	format-rtp.o
 
 SRCS =	rtp.c		\
 	format-dump.c	\
 	format-dump.h	\
-	format-net.c	\
-	format-net.h	\
 	format-rtp.c	\
 	format-rtp.h
 

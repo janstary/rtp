@@ -30,7 +30,6 @@
 #include <netdb.h>
 
 #include "format-dump.h"
-#include "format-net.h"
 #include "format-rtp.h"
 
 #define BUFLEN 8192
