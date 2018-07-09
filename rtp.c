@@ -158,7 +158,10 @@ rtpopen(const char *path, int flags)
 			warn("socket");
 			goto bad;
 		}
-		/* FIXME setsockopt */
+		if (-1 == setsockopt(fd,
+		SOL_SOCKET, SO_REUSEADDR, &fd, sizeof(fd)))
+			warn("REUSEADDR");
+		/* TODO: SO_SNDTIMEO SO_RCVTIMEO SO_TIMESTAMP */
 		if (islocal(a = (struct sockaddr_in*) res->ai_addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
