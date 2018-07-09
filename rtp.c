@@ -66,7 +66,7 @@ static format_t ifmt = FORMAT_NONE;
 static format_t ofmt = FORMAT_NONE;
 
 static void
-usage()
+usage(void)
 {
 	fprintf(stderr,
 		"%s [-r] [-v] [-i format] [-o format] [input] [output]\n",
