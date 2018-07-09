@@ -71,7 +71,7 @@ The stream can be read or written in the following formats:
 .Bl -tag -width Ds
 .It Cm dump
 The format of the original rtptools (see below).
-A dump file starts with a txt line of the form
+A dump file starts with a text line of the form
 .Dq #!rtptools1.0 addr/port ,
 followed by a dumpfile header:
 .Bd -literal
@@ -159,7 +159,7 @@ Read from a dump file, stream rtp to whoever connects:
 .Pp
 .Dl $ rtp session.rtp localhost:1234
 .Pp
-Read from a dump file, stream as rtp to a remote location:
+Read from a dump file, stream rtp to a remote location:
 .Pp
 .Dl $ rtp session.rtp far.away.com:1234
 .Pp
@@ -167,7 +167,7 @@ Read rtp on a local port, save a textual description:
 .Pp
 .Dl $ rtp localhost:1234 outfile.txt
 .Pp
-Read a rtp stream from a remote location, stream it out on a local port.
+Read a rtp stream from a remote location, stream it to somewhere else.
 This makes
 .Nm
 a RTP tunnel.
@@ -177,9 +177,10 @@ a RTP tunnel.
 Read a rtp stream from a remote location, write audio payload to stdout.
 This makes
 .Nm
-a RTP radio listener.
+an RTP radio listener.
 .Pp
-.Dl $ rtp -o raw host.domain.com:1234
+.Dl $ rtp -o raw radio.com:1234
+.Dl $ rtp -o raw radio.com:1234 | play -t raw -c 1 -r 8000 -e u-law -
 .Pp
 With the
 .Fl r
@@ -190,7 +191,8 @@ For example, the following two instances cannot run simultaneously:
 .Dl $ rtp localhost:1234 session.raw
 .Pp
 As
-.Dq localhost resolves to a local address, the first instance will
+.Dq localhost
+resolves to a local address, the first instance will
 .Xr bind 2
 to port 1234 and stream the file to whoever connects, as described above.
 The second instance will also try to
@@ -201,7 +203,7 @@ The second
 will fail.
 Adding the
 .Fl r
-option to the second instance solves precisely this problem
+option to the second instance solves this
 (whichever of the two is the second, in fact): in
 .Pp
 .Dl $ rtp    session.rtp localhost:1234
