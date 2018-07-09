@@ -62,8 +62,7 @@ CC=cc
 # The *SOURCE decalration is needed for GNU,
 # which does not declare e.g. getopt() otherwise.
 
-CFLAGS="-std=c99 -D_XOPEN_SOURCE -g -W -Wall -pedantic"
-CFLAGS="$CFLAGS -Wstrict-prototypes -Wwrite-strings -Wno-unused-parameter"
+CFLAGS="-g -W -Wall -Wstrict-prototypes -Wwrite-strings -Wno-unused-parameter"
 
 # In rare cases, it may be required to skip individual automatic tests.
 # Each of the following variables can be set to 0 (test will not be run
