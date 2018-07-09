@@ -38,7 +38,7 @@ MANDIR="${PREFIX}/man"
 
 # Some platforms might need additional linker flags. For example,
 # Solaris needs -lnsl for gethostbyname(), inet_addr(), inet_ntoa()
-# and -lsocket bind(), socket(), setsockopt(), recvfrom().
+# and -lsocket for bind(), socket(), setsockopt(), recvfrom().
 # Put them in LDADD if ./configure fails to detect that.
 
 LDADD="-lnsl -lsocket"
