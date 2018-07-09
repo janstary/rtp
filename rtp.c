@@ -58,12 +58,12 @@ struct format {
 	{ FORMAT_TXT,	"txt",	"txt"	},
 	{ FORMAT_NONE,	NULL,	NULL	}
 };
+#define NUMFORMATS (sizeof(formats) / sizeof(struct format))
 
 static int remote = 0;
 static int verbose = 0;
 static format_t ifmt = FORMAT_NONE;
 static format_t ofmt = FORMAT_NONE;
-static int (*convert)(int ifd, int ofd) = NULL;
 
 static void
 usage()
@@ -468,11 +468,38 @@ net2txt(int ifd, int ofd)
 }
 
 int
+txt2dump(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
+txt2net(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
+txt2raw(int ifd, int ofd)
+{
+	return 0;
+}
+
+int
 main(int argc, char** argv)
 {
 	int c;
 	int ifd = STDIN_FILENO;
 	int ofd = STDOUT_FILENO;
+
+	int (*convert)(int ifd, int ofd) = NULL;
+	int (*converter[NUMFORMATS][NUMFORMATS])(int, int) = {
+		{ NULL,     dump2net, dump2raw, dump2txt, NULL },
+		{ net2dump, net2net,  net2raw,  net2txt,  NULL },
+		{ NULL,     NULL,     NULL,	NULL,     NULL },
+		{ txt2dump, txt2net,  txt2raw,  NULL,     NULL },
+		{ NULL,     NULL,     NULL,     NULL,     NULL },
+	};
 
 	while ((c = getopt(argc, argv, "i:o:rv")) != -1) switch (c) {
 		case 'i':
@@ -524,31 +551,19 @@ main(int argc, char** argv)
 
 	if (ifmt == FORMAT_NONE) {
 		warnx("Input format not determined");
-	} else if (ifmt == FORMAT_DUMP) {
-		if (ofmt == FORMAT_DUMP) {
-			warnx("No point converting dump to dump.");
-		} else if (ofmt == FORMAT_NET) {
-			convert = dump2net;
-		} else if (ofmt == FORMAT_RAW) {
-			convert = dump2raw;
-		} else if (ofmt == FORMAT_TXT) {
-			convert = dump2txt;
-		}
-	} else if (ifmt == FORMAT_NET) {
-		if (ofmt == FORMAT_DUMP) {
-			convert = net2dump;
-		} else if (ofmt == FORMAT_NET) {
-			convert = net2net;
-		} else if (ofmt == FORMAT_RAW) {
-			convert = net2raw;
-		} else if (ofmt == FORMAT_TXT) {
-			convert = net2txt;
-		}
-	} else if (ifmt == FORMAT_RAW) {
+		return -1;
+	}
+	if (ofmt == FORMAT_NONE) {
+		warnx("Output format not determined");
+		return -1;
+	}
+	if (ifmt == FORMAT_RAW) {
 		warnx("Only output can be raw");
 		return -1;
-	} else if (ifmt == FORMAT_TXT) {
 	}
-
+	if ((convert = converter[ifmt][ofmt]) == NULL) {
+		warnx("No converter for this input/output combination");
+		return -1;
+	}
 	return convert ? convert(ifd, ofd) : -1;
 }
