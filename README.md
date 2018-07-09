@@ -1,9 +1,23 @@
 # RTP (the tool, not the protocol)
 
-The `rtp` tools reads and writes RTP sessions.
+The `rtp` tool reads and writes RTP sessions.
 It uses the same dump format as 
 [https://github.com/columbia-irt/rtptools](rtptools)
 which it aims to replace.
+
+## historical context
+
+In the early days of RTP, Henning Schulzrinne wrote `rtptools`,
+one of the earliest tools to inspect and debug RTP sessions
+and the behaviour of various RTP implementations.
+While being an invaluable tool, the rtptools code base
+is rooted quite a bit in the past, still using GNU workarounds
+from the nineties for things that have a modern equivalent.
+After contributing to rtptools for some time,
+I decided to rewrite from scratch - preserving the format.
+
+Note that RTP sessions can nowadays also be inspected in wirweshark,
+down to the actual audio payload.
 
 ## installation
 
