@@ -68,7 +68,8 @@ static format_t ofmt = FORMAT_NONE;
 static void
 usage()
 {
-	fprintf(stderr, "%s [-v] [-i format] [-o format] [input] [output]\n",
+	fprintf(stderr,
+		"%s [-r] [-v] [-i format] [-o format] [input] [output]\n",
 		__progname);
 }
 
