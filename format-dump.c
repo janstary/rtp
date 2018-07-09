@@ -178,7 +178,6 @@ read_dump(int fd, void *buf, size_t len)
 {
 	ssize_t want, r, have = 0;
 	struct dpkthdr *dpkthdr;
-	struct rtphdr *rtphdr;
 	if ((r = read_dpkthdr(fd, buf, DPKTHDRSIZE)) == 0)
 		return 0;
 	else if (r != DPKTHDRSIZE)
@@ -190,7 +189,6 @@ read_dump(int fd, void *buf, size_t len)
 		warnx("Error reading %zd bytes of RTP packet", want);
 		return -1;
 	}
-	rtphdr = (struct rtphdr*) (buf + DPKTHDRSIZE);
 	have += r, len -= r;
 	return have;
 }
