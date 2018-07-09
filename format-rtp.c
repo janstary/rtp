@@ -13,8 +13,7 @@ print_rtphdr(struct rtphdr* rtp)
 		ntohs(rtp->seq), ntohs(rtp->ssrc), rtp->pt);
 	if (rtp->cc) {
 		fprintf(stderr, "   (sources: ");
-		for (unsigned c = 0; c < rtp->cc; c++) {
-		}
+		/* FIXME */
 		fprintf(stderr, ")\n");
 	}
 	/* FIXME pad rtp->p */
