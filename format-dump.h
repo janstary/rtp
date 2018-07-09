@@ -39,8 +39,8 @@ struct dpkthdr {
 
 #define DUMPLINE    "#!rtpplay1.0 "
 #define DUMPLINELEN strlen(DUMPLINE)
-#define DUMPHDRSIZE sizeof(struct dumphdr)
-#define DPKTHDRSIZE sizeof(struct dpkthdr)
+#define DUMPHDRSIZE ((size_t) sizeof(struct dumphdr))
+#define DPKTHDRSIZE ((size_t) sizeof(struct dpkthdr))
 
 void	print_dumphdr	(struct dumphdr*);
 void	print_dpkthdr	(struct dpkthdr*);
