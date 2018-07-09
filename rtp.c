@@ -232,7 +232,8 @@ rtpopen(const char *path, int flags)
 	}
 	return fd;
 bad:
-	freeaddrinfo(res);
+	if (res)
+		freeaddrinfo(res);
 	close(fd);
 	return -1;
 }
