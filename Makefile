@@ -28,7 +28,14 @@ SRCS =	rtp.c		\
 	format-rtp.c	\
 	format-rtp.h
 
-HAVE_SRCS =	have-err.c have-progname.c have-strtonum.c have-bigendian.c
+HAVE_SRCS = \
+	have-bigendian.c	\
+	have-gethostbyname.c	\
+	have-err.c		\
+	have-progname.c		\
+	have-socket.c		\
+	have-strtonum.c
+
 COMPAT_SRCS =	compat-err.c compat-progname.c compat-strtonum.c
 COMPAT_OBJS =	compat-err.o compat-progname.o compat-strtonum.o
 OBJS +=		$(COMPAT_OBJS)
