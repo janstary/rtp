@@ -106,9 +106,9 @@ islocal(struct sockaddr_in *a)
 	return 0;
 }
 
-/* Open a path for reading or writing (the flags say which).
- * Return a file descriptor the convertor can read/recv from or write/sent to,
- * or -1 for failure. Also, set the input/output format, if not set alrady. */
+/* Open a path for reading or writing (the flags say which). Set the
+ * input/output format, if not set already. Return a file descriptor
+ * the convertor can read/recv from or write/sent to, or -1 for failure. */
 int
 rtpopen(const char *path, int flags)
 {
