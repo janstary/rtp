@@ -249,17 +249,22 @@ dump2net(int ifd, int ofd)
 {
 	ssize_t r, w;
 	int error = 0;
+	struct in_addr addr;
+	uint16_t port;
 	struct dumphdr hdr;
 	struct dpkthdr *pkt;
 	struct rtphdr  *rtp;
 	unsigned char buf[BUFLEN];
-	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
+	if (read_dumpline(ifd, &addr, &port) == -1) {
 		warnx("Error reading dump file line");
 		return -1;
 	}
 	if (read_dumphdr(ifd, &hdr, DUMPHDRSIZE) == -1) {
 		warnx("Error reading %zd bytes of dump header", DUMPHDRSIZE);
 		return -1;
+	}
+	if (check_dumphdr(&hdr, addr, port) == -1) {
+		warnx("dump file header is inconsistent");
 	}
 	if (verbose)
 		print_dumphdr(&hdr);
@@ -300,13 +305,15 @@ dump2net(int ifd, int ofd)
 int
 dump2raw(int ifd, int ofd)
 {
+	struct in_addr addr;
+	uint16_t port;
 	struct rtphdr *rtp;
 	struct dpkthdr *pkt;
 	unsigned char buf[BUFLEN];
 	unsigned char *p = buf;
 	ssize_t s, w, hlen;
 	int error = 0;
-	if (read_dumpline(ifd, buf, BUFLEN) == -1) {
+	if (read_dumpline(ifd, &addr, &port) == -1) {
 		warnx("Invalid dump line");
 		return -1;
 	}

@@ -37,20 +37,22 @@ struct dpkthdr {
 	uint32_t usec; /* usec since start */
 };
 
-#define DUMPLINE    "#!rtpplay1.0 "
-#define DUMPLINELEN strlen(DUMPLINE)
+#define DUMPMAGIC    "#!rtpplay1.0 "
+#define DUMPMAGICLEN strlen(DUMPMAGIC)
 #define DUMPHDRSIZE ((size_t) sizeof(struct dumphdr))
 #define DPKTHDRSIZE ((size_t) sizeof(struct dpkthdr))
 
-void	print_dumphdr	(struct dumphdr*);
-void	print_dpkthdr	(struct dpkthdr*);
-
-ssize_t	read_dumpline	(int, void*, size_t);
-ssize_t	read_dumphdr	(int, void*, size_t);
-ssize_t	read_dpkthdr	(int, void*, size_t);
-ssize_t	read_dump	(int, void*, size_t);
-
+int	read_dumpline	(int, struct in_addr*, uint16_t*);
 ssize_t	write_dumpline	(int);
+
+void	print_dumphdr	(struct dumphdr*);
+int	check_dumphdr	(struct dumphdr*, struct in_addr, uint16_t);
+ssize_t	read_dumphdr	(int, void*, size_t);
 ssize_t	write_dumphdr	(int);
+
+void	print_dpkthdr	(struct dpkthdr*);
+ssize_t	read_dpkthdr	(int, void*, size_t);
 ssize_t	write_dpkthdr	(int, void*, size_t);
+
+ssize_t	read_dump	(int, void*, size_t);
 ssize_t	write_dump	(int, void*, size_t);

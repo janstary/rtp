@@ -17,6 +17,7 @@
 #include <arpa/inet.h>
 #include <sys/types.h>
 #include <sys/time.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -25,23 +26,37 @@
 #include "format-dump.h"
 #include "format-rtp.h"
 
-/* Read and ignore the DUMPLINE.
- * Check that the version string is there.
+/* Parse the #! dump line: check that the magic is there,
+ * check that the addr/port is valid and store them.
  * Return 0 on success, or -1 on error. */
-ssize_t
-read_dumpline(int fd, void *buf, size_t len)
+int
+read_dumpline(int fd, struct in_addr *addr, uint16_t *port)
 {
-	char p;
-	if ((read(fd, buf, DUMPLINELEN) != DUMPLINELEN)
-	||  (strncmp(buf, DUMPLINE, DUMPLINELEN) != 0)
-	||  (strncmp(buf+9, "1.0", 3) != 0)) {
+	char *a, *p;
+	const char *e;
+	char buf[1024];
+	if ((read(fd, buf, DUMPMAGICLEN) != DUMPMAGICLEN)
+	||  (strncmp(buf, DUMPMAGIC, DUMPMAGICLEN) != 0)) {
+		warnx("'%s' not found", DUMPMAGIC);
 		return -1;
 	}
-	while (read(fd, &p, 1) == 1) {
-		if (p == '\n')
+	for (a = p = buf; read(fd, p, 1) == 1; p++) {
+		if (*p == '\n') {
+			*p = '\0';
 			break;
+		}
 	}
-	if (p != '\n') {
+	if ((p = strchr(a, '/')) == NULL) {
+		warnx("addr/port not found");
+		return -1;
+	}
+	*p++ = '\0';
+	if (!inet_aton(a, addr)) {
+		warnx("'%s' is not a valid address", a);
+		return -1;
+	}
+	if ((*port = strtonum(p, 1, UINT16_MAX, &e)) == 0) {
+		warnx("port number '%s' %s", p, e);
 		return -1;
 	}
 	return 0;
@@ -110,6 +125,20 @@ write_dumphdr(int fd)
 		return -1;
 	}
 	return DUMPHDRSIZE;
+}
+
+/* Check that the dumphdr is valid, and that it agreees with
+ * the provided address and port (from the #! dump line).
+ * Return 0 for OK< -1 for error. */
+int
+check_dumphdr(struct dumphdr* hdr, struct in_addr addr, uint16_t port) {
+	if (hdr == NULL)
+		return -1;
+	if (hdr->addr != * (uint32_t*) &addr)
+		return -1;
+	if (hdr->port != port)
+		return -1;
+	return 0;
 }
 
 /* Print a captured packet header. */
