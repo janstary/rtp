@@ -164,10 +164,6 @@ read_dpkthdr(int fd, void *buf, size_t len)
 {
 	ssize_t r = 0;
 	struct dpkthdr *dpkthdr;
-	if (len < DPKTHDRSIZE) {
-		warnx("Buffer full");
-		return -1;
-	}
 	if ((r = read(fd, buf, DPKTHDRSIZE)) == 0) {
 		return 0;
 	} else if (r != DPKTHDRSIZE) {

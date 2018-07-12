@@ -307,8 +307,9 @@ dump2raw(int ifd, int ofd)
 {
 	struct in_addr addr;
 	uint16_t port;
-	struct rtphdr *rtp;
+	struct dumphdr hdr;
 	struct dpkthdr *pkt;
+	struct rtphdr *rtp;
 	unsigned char buf[BUFLEN];
 	unsigned char *p = buf;
 	ssize_t s, w, hlen;
@@ -317,8 +318,12 @@ dump2raw(int ifd, int ofd)
 		warnx("Invalid dump line");
 		return -1;
 	}
-	if (read_dumphdr(ifd, buf, BUFLEN) == -1) {
+	if (read_dumphdr(ifd, &hdr, DUMPHDRSIZE) == -1) {
 		warnx("Invalid dump file header");
+		return -1;
+	}
+	if (check_dumphdr(&hdr, addr, port) == -1) {
+		warnx("Dump file inconsistent");
 		return -1;
 	}
 	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
