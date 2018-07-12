@@ -115,6 +115,7 @@ rtpopen(const char *path, int flags)
 	int e;
 	int fd = -1;
 	uint32_t port;
+	const char* er;
 	char* p = NULL;
 	format_t fmt = FORMAT_NONE;;
 	struct addrinfo *res = NULL;
@@ -134,8 +135,8 @@ rtpopen(const char *path, int flags)
 	} else if ((p = strchr(path, ':'))) {
 		/* addr:port */
 		*p++ = '\0';
-		if ((port = atoi(p)) == 0) { /* FIXME strtonum */
-			warnx("%s is not a valid port number", p);
+		if ((port = strtonum(p, 1, UINT16_MAX, &er)) == 0) {
+			warnx("port number '%s' %s", p, er);
 			return -1;
 		}
 		if (*path == '\0')
