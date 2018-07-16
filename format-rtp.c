@@ -9,7 +9,7 @@ print_rtphdr(struct rtphdr* rtp)
 	if (rtp == NULL)
 		return;
 	fprintf(stderr, " %c version %u, ts %u, seq %u, ssrc %#x, pt %u\n",
-		rtp->m ? '*' : ' ', rtp->v, ntohs(rtp->ts),
+		rtp->m ? '*' : ' ', rtp->v, ntohl(rtp->ts),
 		ntohs(rtp->seq), ntohs(rtp->ssrc), rtp->pt);
 	if (rtp->cc) {
 		fprintf(stderr, "   (sources: ");
