@@ -34,7 +34,7 @@ struct dpkthdr {
 	uint16_t dlen; /* length of the dumped packet, including dpkthdr */
 	uint16_t plen; /* length of the original RTP header + payload    */
 	/* Note that dlen < plen if payload was truncated during dump.   */
-	uint32_t usec; /* usec since start */
+	uint32_t msec; /* milliseconds since dump start */
 };
 
 #define DUMPMAGIC    "#!rtpplay1.0 "

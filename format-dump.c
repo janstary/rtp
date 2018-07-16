@@ -147,7 +147,7 @@ print_dpkthdr(struct dpkthdr *dpkthdr)
 {
 	if (dpkthdr == NULL)
 		return;
-	fprintf(stderr, "%08u ", dpkthdr->usec);
+	fprintf(stderr, "%08.3f ", dpkthdr->msec / 1e3);
 	if (dpkthdr->plen) {
 		fprintf(stderr, "RTP  %u bytes (%zd captured)\n",
 			dpkthdr->plen, dpkthdr->dlen - DPKTHDRSIZE);
@@ -173,7 +173,7 @@ read_dpkthdr(int fd, void *buf, size_t len)
 	dpkthdr = (struct dpkthdr*) buf;
 	dpkthdr->dlen = ntohs(dpkthdr->dlen);
 	dpkthdr->plen = ntohs(dpkthdr->plen);
-	dpkthdr->usec = ntohl(dpkthdr->usec);
+	dpkthdr->msec = ntohl(dpkthdr->msec);
 	return r;
 }
 
@@ -187,7 +187,7 @@ write_dpkthdr(int fd, void *buf, size_t len)
 	struct dpkthdr *hdr = buf;
 	hdr->dlen = htons(hdr->dlen);
 	hdr->plen = htons(hdr->plen);
-	hdr->usec = htonl(1234); /* FIXME */
+	hdr->msec = htonl(1234); /* FIXME */
 	if ((w = write(fd, buf, DPKTHDRSIZE)) != DPKTHDRSIZE) {
 		warnx("Error writing packet header");
 		return -1;
