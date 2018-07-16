@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Jan stary <hans@stare.cz>
+ * Copyright (c) 2018 Jan Stary <hans@stare.cz>
  *
  * Permission to use, copy, modify, and distribute this software for any
  * purpose with or without fee is hereby granted, provided that the above
@@ -23,6 +23,7 @@
 #include <errno.h>
 #include <err.h>
 
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -242,6 +243,43 @@ bad:
 	return -1;
 }
 
+/* Compute the time interval form old to new.
+ * Return the difference in usec, or 0 if new is older. */
+uint32_t
+tvdiff(struct timeval old, struct timeval new)
+{
+	uint32_t usec;
+	if ((old.tv_sec > new.tv_sec)
+	|| ((old.tv_sec == new.tv_sec) && (old.tv_usec > new.tv_usec)))
+		return 0;
+	usec = (new.tv_sec - old.tv_sec) * 1000000;
+	usec += new.tv_usec - old.tv_usec;
+	return usec;
+}
+
+/* The 'zero' describes the start of the dump,
+ * the 'when' says (in msec since zero) when the next packet goes out.
+ * Sleep for the appropriate time; then return 0, or -1 if interrupted. */
+int
+xsleep(struct timeval zero, uint32_t when)
+{
+	struct timeval now;
+	struct timespec nap;
+	uint32_t usec = when * 1000;
+	if (gettimeofday(&now, NULL) == -1) {
+		warnx("gettimeofday");
+		return -1;
+	}
+	usec -= tvdiff(zero, now);
+	nap.tv_sec = usec / 1000000;
+	nap.tv_nsec = (usec % 1000000) * 1000;
+	if (nanosleep(&nap, NULL) != 0) {
+		warnx("packet timing interrupted");
+		return -1;
+	}
+	return 0;
+}
+
 /* Read a dump file from input, send the RTP output via net.
  * FIXME: mind the timing, as opposed to sending as you read.
  * Return 0 for success, -1 for error. */
@@ -255,6 +293,7 @@ dump2net(int ifd, int ofd)
 	struct dumphdr hdr;
 	struct dpkthdr *pkt;
 	struct rtphdr  *rtp;
+	struct timeval zero;
 	unsigned char buf[BUFLEN];
 	if (read_dumpline(ifd, &addr, &port) == -1) {
 		warnx("Error reading dump file line");
@@ -265,13 +304,21 @@ dump2net(int ifd, int ofd)
 		return -1;
 	}
 	if (check_dumphdr(&hdr, addr, port) == -1) {
-		warnx("dump file header is inconsistent");
+		warnx("Dump file header is inconsistent");
 	}
 	if (verbose)
 		print_dumphdr(&hdr);
+	if (gettimeofday(&zero, NULL) == -1) {
+		warnx("gettimeofday");
+		return -1;
+	}
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		if (xsleep(zero, pkt->msec) == -1) {
+			warnx("packet timing failed");
+			return -1;
+		}
 		if (verbose)
 			print_dpkthdr(pkt);
 		if (parse_rtphdr(rtp) == -1) {
@@ -296,7 +343,6 @@ dump2net(int ifd, int ofd)
 			error = -1;
 			continue;
 		}
-		sleep(1); /* FIXME: propper timing as per rtp->ts */
 	}
 	return r == -1 ? -1 : error;
 }
