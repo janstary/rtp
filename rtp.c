@@ -62,6 +62,7 @@ struct format {
 #define NUMFORMATS (sizeof(formats) / sizeof(struct format))
 
 static int remote = 0;
+static int dumptime = 0;
 static int verbose = 0;
 static format_t ifmt = FORMAT_NONE;
 static format_t ofmt = FORMAT_NONE;
@@ -261,7 +262,7 @@ tvdiff(struct timeval old, struct timeval new)
  * the 'when' says (in msec since zero) when the next packet goes out.
  * Sleep for the appropriate time; then return 0, or -1 if interrupted. */
 int
-xsleep(struct timeval zero, uint32_t when)
+dumpsleep(struct timeval zero, uint32_t when)
 {
 	struct timeval now;
 	struct timespec nap;
@@ -315,7 +316,7 @@ dump2net(int ifd, int ofd)
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
-		if (xsleep(zero, pkt->msec) == -1) {
+		if (dumptime && dumpsleep(zero, pkt->msec) == -1) {
 			warnx("packet timing failed");
 			return -1;
 		}
@@ -567,7 +568,7 @@ main(int argc, char** argv)
 		{ NULL,     NULL,     NULL,     NULL,     NULL },
 	};
 
-	while ((c = getopt(argc, argv, "i:o:rv")) != -1) switch (c) {
+	while ((c = getopt(argc, argv, "i:o:rtv")) != -1) switch (c) {
 		case 'i':
 			if (((ifmt = fmtbyname(optarg))) == FORMAT_NONE) {
 				warnx("unknown format: %s", optarg);
@@ -582,6 +583,9 @@ main(int argc, char** argv)
 			break;
 		case 'r':
 			remote = 1;
+			break;
+		case 't':
+			dumptime = 1;
 			break;
 		case 'v':
 			verbose = 1;

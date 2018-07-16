@@ -20,6 +20,7 @@
 .Sh SYNOPSIS
 .Nm
 .Op Fl r
+.Op Fl t
 .Op Fl v
 .Op Fl i Ar format
 .Op Fl o Ar format
@@ -138,6 +139,13 @@ with
 .Cm dump
 being the default if the format cannot be guessed from the name.
 .Pp
+By default,
+.Nm
+will use the RTP timestamps when sending packets out.
+This can be changed with the
+.Fl t
+option, which uses the dump time instead.
+.Pp
 The options are as follows.
 .Pp
 .Bl -tag -compact -width formatxxx
@@ -147,6 +155,8 @@ Set the input format.
 Set the output format.
 .It Fl r
 Treat all addresses as remote.
+.It Fl t
+Use dump time for outgoing packets.
 .It Fl v
 Be verbose about the packets.
 .El
