@@ -184,13 +184,14 @@ rtpopen(const char *path, int flags)
 				while (recvfrom(fd, b, 1, 0, &r, &len) != 1)
 					;
 				if (connect(fd, &r, len) == -1) {
-					warn("connect");
+					/* Debian: EAFNOSUPPORT for localhost */
+					warn("connect to output");
 					goto bad;
 				}
 			}
 		} else {
 			if (connect(fd, res->ai_addr, res->ai_addrlen) == -1) {
-				warn("connect");
+				warn("connect to remote");
 				goto bad;
 			}
 			if (!(flags & O_CREAT)) {
