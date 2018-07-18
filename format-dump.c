@@ -82,8 +82,7 @@ print_dumphdr(struct dumphdr *hdr)
 		return;
 	a.s_addr = hdr->addr;
 	fprintf(stderr, "dump of %s:%d starts on %u:%u\n",
-		inet_ntoa(a), hdr->port,
-		ntohl(hdr->time.sec), ntohl(hdr->time.usec));
+		inet_ntoa(a), hdr->port, hdr->time.sec, hdr->time.usec);
 }
 
 /* Read the global binary dumphdr from a file,
