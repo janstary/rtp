@@ -82,7 +82,7 @@ print_dumphdr(struct dumphdr *hdr)
 		return;
 	a.s_addr = hdr->addr;
 	fprintf(stderr, "dump of %s:%d starts on %u:%u\n",
-		inet_ntoa(a), ntohs(hdr->port),
+		inet_ntoa(a), hdr->port,
 		ntohl(hdr->time.sec), ntohl(hdr->time.usec));
 }
 
@@ -118,8 +118,8 @@ write_dumphdr(int fd)
 	}
 	hdr.time.sec = htonl(tv.tv_sec);
 	hdr.time.usec = htonl(tv.tv_usec);
-	hdr.addr = htonl(0);
-	hdr.port = htons(0);
+	hdr.addr = htonl(0); /* FIXME */
+	hdr.port = htons(0); /* FIXME */
 	if (write(fd, &hdr, DUMPHDRSIZE) != DUMPHDRSIZE) {
 		warnx("Error writing dump header");
 		return -1;
