@@ -266,12 +266,16 @@ dumpsleep(struct timeval zero, uint32_t when)
 {
 	struct timeval now;
 	struct timespec nap;
-	uint32_t usec = when * 1000;
+	uint32_t diff, usec = when * 1000;
 	if (gettimeofday(&now, NULL) == -1) {
 		warnx("gettimeofday");
 		return -1;
 	}
-	usec -= tvdiff(zero, now);
+	if ((diff = tvdiff(zero, now)) > usec) {
+		/* we are late already */
+		return 0;
+	}
+	usec -= diff;
 	nap.tv_sec = usec / 1000000;
 	nap.tv_nsec = (usec % 1000000) * 1000;
 	if (nanosleep(&nap, NULL) != 0) {
@@ -344,8 +348,9 @@ dump2net(int ifd, int ofd)
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
-		if ((dumptime && dumpsleep(zero, pkt->msec) == -1)
-		|| (rtpsleep(&last, ntohl(rtp->ts)) == -1)) {
+		if ((dumptime
+		? dumpsleep(zero, pkt->msec)
+		: rtpsleep(&last, ntohl(rtp->ts))) == -1) {
 			warnx("packet timing failed");
 			error = -1;
 			continue;
