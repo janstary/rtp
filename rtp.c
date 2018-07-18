@@ -244,7 +244,7 @@ bad:
 	return -1;
 }
 
-/* Compute the time interval form old to new.
+/* Compute the time interval from old to new timeval.
  * Return the difference in usec, or 0 if new is older. */
 uint32_t
 tvdiff(struct timeval old, struct timeval new)
@@ -281,6 +281,33 @@ dumpsleep(struct timeval zero, uint32_t when)
 	return 0;
 }
 
+/* The 'last' is a timestamp of the last RTP packet we sent,
+ * and 'next' is a timestamp of the next one. Sleep for the appropriate time.
+ * Return 0 for success, -1 for error. */
+int
+rtpsleep(uint32_t *last, uint32_t next)
+{
+	uint32_t diff;
+	struct timespec nap;
+	if (*last == 0) {
+		*last = next;
+		return 0;
+	}
+	if (*last > next) {
+		warnx("packets out of timestamp order: %u > %u", *last, next);
+		return -1;
+	}
+	diff = next - *last;
+	nap.tv_sec = diff / 1000000;
+	nap.tv_nsec = (diff % 1000000) * 1000;
+	*last = next;
+	if (nanosleep(&nap, NULL) != 0) {
+		warnx("packet timing interrupted");
+		return -1;
+	}
+	return 0;
+}
+
 /* Read a dump file from input, send the RTP output via net.
  * FIXME: mind the timing, as opposed to sending as you read.
  * Return 0 for success, -1 for error. */
@@ -295,6 +322,7 @@ dump2net(int ifd, int ofd)
 	struct dpkthdr *pkt;
 	struct rtphdr  *rtp;
 	struct timeval zero;
+	uint32_t last = 0;
 	unsigned char buf[BUFLEN];
 	if (read_dumpline(ifd, &addr, &port) == -1) {
 		warnx("Error reading dump file line");
@@ -309,16 +337,18 @@ dump2net(int ifd, int ofd)
 	}
 	if (verbose)
 		print_dumphdr(&hdr);
-	if (gettimeofday(&zero, NULL) == -1) {
+	if (dumptime && gettimeofday(&zero, NULL) == -1) {
 		warnx("gettimeofday");
 		return -1;
 	}
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
-		if (dumptime && dumpsleep(zero, pkt->msec) == -1) {
+		if ((dumptime && dumpsleep(zero, pkt->msec) == -1)
+		|| (rtpsleep(&last, ntohl(rtp->ts)) == -1)) {
 			warnx("packet timing failed");
-			return -1;
+			error = -1;
+			continue;
 		}
 		if (verbose)
 			print_dpkthdr(pkt);
