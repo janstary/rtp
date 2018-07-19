@@ -27,7 +27,7 @@
 #include "format-rtp.h"
 
 /* Parse the #! dump line: check that the magic is there,
- * check that the addr/port is valid and store them.
+ * check that the addr/port is valid, and store them.
  * Return 0 on success, or -1 on error. */
 int
 read_dumpline(int fd, struct in_addr *addr, uint16_t *port)

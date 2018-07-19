@@ -89,11 +89,14 @@ struct dumphdr {
 .Pp
 When reading,
 .Nm
-ignores the starting line
-and the addr and port stored in the above header.
+checks that the
+.Va addr
+and
+.Va port
+specified at the starting line are those stored in the above header.
 When writing,
 .Nm
-sets them to zero.
+sets them to the address and port where the traffic was captured.
 .Pp
 The actual RTP packets follow, each prefixed with:
 .Bd -literal
