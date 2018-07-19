@@ -40,7 +40,6 @@
 extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
 struct sockaddr_in *addr;
-uint32_t port;
 
 typedef enum {
 	FORMAT_DUMP,
@@ -118,6 +117,7 @@ rtpopen(const char *path, int flags)
 {
 	int e;
 	int fd = -1;
+	uint16_t port;
 	const char* er;
 	char* p = NULL;
 	format_t fmt = FORMAT_NONE;;
@@ -165,11 +165,12 @@ rtpopen(const char *path, int flags)
 		SOL_SOCKET, SO_REUSEADDR, &fd, sizeof(fd)))
 			warn("REUSEADDR");
 		/* TODO: SO_SNDTIMEO SO_RCVTIMEO SO_TIMESTAMP */
-		if (islocal(addr = (struct sockaddr_in*) res->ai_addr)) {
+		addr = (struct sockaddr_in*) res->ai_addr;
+		addr->sin_port = htons(port);
+		if (islocal(addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
 			 * to know who to write to. So bind(2) in any case. */
-			addr->sin_port = htons(port);
 			if (bind(fd, res->ai_addr, res->ai_addrlen) == -1) {
 				warn("bind");
 				goto bad;
@@ -320,15 +321,14 @@ dump2net(int ifd, int ofd)
 {
 	ssize_t r, w;
 	int error = 0;
-	struct in_addr addr;
-	uint16_t port;
+	struct sockaddr_in addr;
 	struct dumphdr hdr;
 	struct dpkthdr *pkt;
 	struct rtphdr  *rtp;
 	struct timeval zero;
 	uint32_t last = 0;
 	unsigned char buf[BUFLEN];
-	if (read_dumpline(ifd, &addr, &port) == -1) {
+	if (read_dumpline(ifd, &addr) == -1) {
 		warnx("Error reading dump line");
 		return -1;
 	}
@@ -336,9 +336,8 @@ dump2net(int ifd, int ofd)
 		warnx("Error reading %zd bytes of dump header", DUMPHDRSIZE);
 		return -1;
 	}
-	if (check_dumphdr(&hdr, addr, port) == -1) {
+	if (check_dumphdr(&hdr, &addr) == -1)
 		warnx("Dump file header is inconsistent");
-	}
 	if (verbose)
 		print_dumphdr(&hdr);
 	if (dumptime && gettimeofday(&zero, NULL) == -1) {
@@ -389,8 +388,7 @@ dump2net(int ifd, int ofd)
 int
 dump2raw(int ifd, int ofd)
 {
-	struct in_addr addr;
-	uint16_t port;
+	struct sockaddr_in addr;
 	struct dumphdr hdr;
 	struct dpkthdr *pkt;
 	struct rtphdr *rtp;
@@ -398,7 +396,7 @@ dump2raw(int ifd, int ofd)
 	unsigned char *p = buf;
 	ssize_t r, w, hlen;
 	int error = 0;
-	if (read_dumpline(ifd, &addr, &port) == -1) {
+	if (read_dumpline(ifd, &addr) == -1) {
 		warnx("Error reading dump line");
 		return -1;
 	}
@@ -406,9 +404,8 @@ dump2raw(int ifd, int ofd)
 		warnx("Error reading dump header");
 		return -1;
 	}
-	if (check_dumphdr(&hdr, addr, port) == -1) {
+	if (check_dumphdr(&hdr, &addr) == -1)
 		warnx("Dump file header is inconsistent");
-	}
 	if (verbose)
 		print_dumphdr(&hdr);
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
@@ -460,11 +457,11 @@ net2dump(int ifd, int ofd)
 	struct rtphdr *rtp;
 	struct dpkthdr hdr;
 	unsigned char buf[BUFLEN];
-	if (write_dumpline(ofd) == -1) {
+	if (write_dumpline(ofd, addr) == -1) {
 		warnx("Error writing dump line");
 		return -1;
 	}
-	if (write_dumphdr(ofd) == -1) {
+	if (write_dumphdr(ofd, addr) == -1) {
 		warnx("Error writing dump header");
 		return -1;
 	}
@@ -495,7 +492,6 @@ net2dump(int ifd, int ofd)
 			continue;
 		}
 	}
-	fprintf(stderr, "read %zd bytes\n", r);
 	return r == -1 ? -1 : error;
 }
 

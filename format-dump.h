@@ -42,13 +42,13 @@ struct dpkthdr {
 #define DUMPHDRSIZE ((size_t) sizeof(struct dumphdr))
 #define DPKTHDRSIZE ((size_t) sizeof(struct dpkthdr))
 
-int	read_dumpline	(int, struct in_addr*, uint16_t*);
-ssize_t	write_dumpline	(int);
+int	read_dumpline	(int, struct sockaddr_in*);
+int	write_dumpline	(int, struct sockaddr_in*);
 
 void	print_dumphdr	(struct dumphdr*);
-int	check_dumphdr	(struct dumphdr*, struct in_addr, uint16_t);
+int	check_dumphdr	(struct dumphdr*, struct sockaddr_in*);
 ssize_t	read_dumphdr	(int, void*, size_t);
-ssize_t	write_dumphdr	(int);
+ssize_t	write_dumphdr	(int, struct sockaddr_in*);
 
 void	print_dpkthdr	(struct dpkthdr*);
 ssize_t	read_dpkthdr	(int, void*, size_t);
