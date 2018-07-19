@@ -39,6 +39,8 @@
 
 extern const char* __progname;
 struct ifaddrs *ifaces = NULL;
+struct sockaddr_in *addr;
+uint32_t port;
 
 typedef enum {
 	FORMAT_DUMP,
@@ -108,21 +110,19 @@ islocal(struct sockaddr_in *a)
 	return 0;
 }
 
-/* Open a path for reading or writing (the flags say which). Set the
- * input/output format, if not set already. Return a file descriptor
- * the convertor can read/recv from or write/sent to, or -1 for failure. */
+/* Open a path for reading or writing (the flags say which).
+ * Set the input/output format, set addr/port if applicable.
+ * Return a file descriptor, or -1 for failure. */
 int
 rtpopen(const char *path, int flags)
 {
 	int e;
 	int fd = -1;
-	uint32_t port;
 	const char* er;
 	char* p = NULL;
 	format_t fmt = FORMAT_NONE;;
 	struct addrinfo *res = NULL;
 	struct addrinfo info;
-	struct sockaddr_in *a;
 	if (strcmp(path, "-") == 0) {
 		/* stdin/stdout */
 		if (flags & O_CREAT) {
@@ -165,11 +165,11 @@ rtpopen(const char *path, int flags)
 		SOL_SOCKET, SO_REUSEADDR, &fd, sizeof(fd)))
 			warn("REUSEADDR");
 		/* TODO: SO_SNDTIMEO SO_RCVTIMEO SO_TIMESTAMP */
-		if (islocal(a = (struct sockaddr_in*) res->ai_addr)) {
+		if (islocal(addr = (struct sockaddr_in*) res->ai_addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
 			 * to know who to write to. So bind(2) in any case. */
-			a->sin_port = htons(port);
+			addr->sin_port = htons(port);
 			if (bind(fd, res->ai_addr, res->ai_addrlen) == -1) {
 				warn("bind");
 				goto bad;
