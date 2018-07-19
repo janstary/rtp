@@ -329,7 +329,7 @@ dump2net(int ifd, int ofd)
 	uint32_t last = 0;
 	unsigned char buf[BUFLEN];
 	if (read_dumpline(ifd, &addr, &port) == -1) {
-		warnx("Error reading dump file line");
+		warnx("Error reading dump line");
 		return -1;
 	}
 	if (read_dumphdr(ifd, &hdr, DUMPHDRSIZE) == -1) {
@@ -396,31 +396,28 @@ dump2raw(int ifd, int ofd)
 	struct rtphdr *rtp;
 	unsigned char buf[BUFLEN];
 	unsigned char *p = buf;
-	ssize_t s, w, hlen;
+	ssize_t r, w, hlen;
 	int error = 0;
 	if (read_dumpline(ifd, &addr, &port) == -1) {
-		warnx("Invalid dump line");
+		warnx("Error reading dump line");
 		return -1;
 	}
 	if (read_dumphdr(ifd, &hdr, DUMPHDRSIZE) == -1) {
-		warnx("Invalid dump file header");
+		warnx("Error reading dump header");
 		return -1;
 	}
 	if (check_dumphdr(&hdr, addr, port) == -1) {
-		warnx("Dump file inconsistent");
-		return -1;
+		warnx("Dump file header is inconsistent");
 	}
-	while ((s = read_dump(ifd, buf, BUFLEN)) > 0) {
+	if (verbose)
+		print_dumphdr(&hdr);
+	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) (p = buf);
+		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if (pkt->plen == 0) /* not RTP */
 			continue;
 		if (verbose)
 			print_dpkthdr(pkt);
-		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
-			warnx("%lu bytes of RTP payload missing",
-				pkt->plen - pkt->dlen + DPKTHDRSIZE);
-		}
-		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
 		if ((hlen = parse_rtphdr(rtp)) == -1) {
 			warnx("Error parsing RTP header");
 			error = -1;
@@ -428,19 +425,23 @@ dump2raw(int ifd, int ofd)
 		}
 		if (verbose)
 			print_rtphdr(rtp);
+		if (pkt->dlen - DPKTHDRSIZE < pkt->plen) {
+			warnx("%lu bytes of RTP payload missing",
+				pkt->plen - pkt->dlen + DPKTHDRSIZE);
+		}
 		p += DPKTHDRSIZE + hlen;
-		s -= DPKTHDRSIZE + hlen;
-		if ((w = write(ofd, p, s)) == -1) {
-			warnx("Error writing %zd bytes of payload", s);
+		r -= DPKTHDRSIZE + hlen;
+		if ((w = write(ofd, p, r)) == -1) {
+			warnx("Error writing %zd bytes of payload", r);
 			error = -1;
 			continue;
-		} else if (w < s) {
-			warnx("Only wrote %zd < %zd bytes of payload", w, s);
+		} else if (w < r) {
+			warnx("Only wrote %zd < %zd bytes of payload", w, r);
 			error = -1;
 			continue;
 		}
 	}
-	return s == -1 ? -1 : error;
+	return r == -1 ? -1 : error;
 }
 
 int
