@@ -314,7 +314,6 @@ rtpsleep(uint32_t *last, uint32_t next)
 }
 
 /* Read a dump file from input, send the RTP output via net.
- * FIXME: mind the timing, as opposed to sending as you read.
  * Return 0 for success, -1 for error. */
 int
 dump2net(int ifd, int ofd)
@@ -349,6 +348,13 @@ dump2net(int ifd, int ofd)
 	while ((r = read_dump(ifd, buf, BUFLEN)) > 0) {
 		pkt = (struct dpkthdr*) buf;
 		rtp = (struct rtphdr*) (buf + DPKTHDRSIZE);
+		if (pkt->plen == 0) { /* FIXME: that's RTCP. Currently, we don't
+			send these, because receiving zero size confuses the
+			reader, who considers that an end. But a RTCP packet
+			does not actualy have zero size. We need to properly
+			read the RTPC header, which we don't, yet. */
+			continue;
+		}
 		if ((dumptime
 		? dumpsleep(zero, pkt->msec)
 		: rtpsleep(&last, ntohl(rtp->ts))) == -1) {
@@ -365,12 +371,6 @@ dump2net(int ifd, int ofd)
 		}
 		if (verbose)
 			print_rtphdr(rtp);
-		if (pkt->plen == 0) /* FIXME: that's RTCP. Currently, we don't
-			send these, because receiving zero size confuses the
-			reader, who considers that an end. But a RTCP packet
-			does not actualy have zero size. We need to properly
-			read the RTPC header, which we don't, yet. */
-			continue;
 		if ((w = send(ofd, rtp, pkt->plen, 0)) == -1) {
 			warnx("Error sending %u bytes of RTP", pkt->plen);
 			error = -1;
