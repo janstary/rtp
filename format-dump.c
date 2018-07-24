@@ -59,12 +59,12 @@ read_dumpline(int fd, struct sockaddr_in *addr)
 		warnx("port number '%s' %s", p, e);
 		return -1;
 	}
-	addr->sin_addr.s_addr = htonl(addr->sin_addr.s_addr);
-	addr->sin_port = htons(addr->sin_port);
+	addr->sin_addr.s_addr = addr->sin_addr.s_addr;
+	addr->sin_port = addr->sin_port;
 	return 0;
 }
 
-/* Write the DUMPLINE, with a zero addr/port.
+/* Write the DUMPLINE, with the given addr/port.
  * Return 0 for success, -1 on error. */
 int
 write_dumpline(int fd, struct sockaddr_in *addr)
@@ -72,7 +72,7 @@ write_dumpline(int fd, struct sockaddr_in *addr)
 	int len = 0;
 	char *line = NULL;
 	len = asprintf(&line, "#!rtpplay1.0 %s/%u\n",
-		inet_ntoa(addr->sin_addr), ntohs(addr->sin_port));
+		inet_ntoa(addr->sin_addr), addr->sin_port);
 	if (write(fd, line, len) != len)
 		return -1;
 	free(line);
@@ -87,7 +87,7 @@ print_dumphdr(struct dumphdr *hdr)
 	if (hdr == NULL)
 		return;
 	start = hdr->time.sec;
-	a.s_addr = ntohl(hdr->addr);
+	a.s_addr = hdr->addr;
 	fprintf(stderr, "dump of %s:%d started %s",
 		inet_ntoa(a), hdr->port, ctime(&start));
 }
@@ -114,18 +114,13 @@ read_dumphdr(int fd, void *buf, size_t len)
  * converting the values to network byte order.
  * Return bytes written, or -1 on error. */
 ssize_t
-write_dumphdr(int fd, struct sockaddr_in *addr)
+write_dumphdr(int fd, struct sockaddr_in *addr, struct timeval *start)
 {
-	struct timeval tv;
 	struct dumphdr hdr;
-	if (gettimeofday(&tv, NULL) == -1) {
-		warn("gettimeofday");
-		return -1;
-	}
-	hdr.time.sec = htonl(tv.tv_sec);
-	hdr.time.usec = htonl(tv.tv_usec);
-	hdr.addr = addr->sin_addr.s_addr;
-	hdr.port = addr->sin_port;
+	hdr.time.sec = htonl(start->tv_sec);
+	hdr.time.usec = htonl(start->tv_usec);
+	hdr.addr = htonl(addr->sin_addr.s_addr);
+	hdr.port = htons(addr->sin_port);
 	if (write(fd, &hdr, DUMPHDRSIZE) != DUMPHDRSIZE) {
 		warnx("Error writing dump header");
 		return -1;
@@ -135,7 +130,7 @@ write_dumphdr(int fd, struct sockaddr_in *addr)
 
 /* Check that the dumphdr is valid, and that it agreees with
  * the provided address and port (from the #! dump line).
- * Return 0 for OK< -1 for error. */
+ * Return 0 for OK, -1 for error. */
 int
 check_dumphdr(struct dumphdr* hdr, struct sockaddr_in *addr) {
 	if (hdr == NULL)
@@ -144,7 +139,7 @@ check_dumphdr(struct dumphdr* hdr, struct sockaddr_in *addr) {
 		warnx("%0x is not %0x", hdr->addr, addr->sin_addr.s_addr);
 		return -1;
 	}
-	if (hdr->port != ntohs(addr->sin_port)) {
+	if (hdr->port != addr->sin_port) {
 		warnx("%u is not %u", hdr->port, addr->sin_port);
 		return -1;
 	}
@@ -191,14 +186,14 @@ read_dpkthdr(int fd, void *buf, size_t len)
  * converting the values to network byte order.
  * Return bytes written, or -1 on error. */
 ssize_t
-write_dpkthdr(int fd, void *buf, size_t len)
+write_dpkthdr(int fd, uint16_t plen, uint32_t msec)
 {
 	ssize_t w = 0;
-	struct dpkthdr *hdr = buf;
-	hdr->dlen = htons(hdr->dlen);
-	hdr->plen = htons(hdr->plen);
-	hdr->msec = htonl(1234); /* FIXME */
-	if ((w = write(fd, buf, DPKTHDRSIZE)) != DPKTHDRSIZE) {
+	struct dpkthdr hdr;
+	hdr.msec = htonl(msec);
+	hdr.plen = htons(plen);
+	hdr.dlen = htons(plen + DPKTHDRSIZE);
+	if ((w = write(fd, &hdr, DPKTHDRSIZE)) != DPKTHDRSIZE) {
 		warnx("Error writing packet header");
 		return -1;
 	}
