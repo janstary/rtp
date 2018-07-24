@@ -46,13 +46,13 @@ int	read_dumpline	(int, struct sockaddr_in*);
 int	write_dumpline	(int, struct sockaddr_in*);
 
 void	print_dumphdr	(struct dumphdr*);
-int	check_dumphdr	(struct dumphdr*, struct sockaddr_in*);
 ssize_t	read_dumphdr	(int, void*, size_t);
-ssize_t	write_dumphdr	(int, struct sockaddr_in*);
+ssize_t	write_dumphdr	(int, struct sockaddr_in*, struct timeval*);
+int	check_dumphdr	(struct dumphdr*, struct sockaddr_in*);
 
 void	print_dpkthdr	(struct dpkthdr*);
 ssize_t	read_dpkthdr	(int, void*, size_t);
-ssize_t	write_dpkthdr	(int, void*, size_t);
+ssize_t	write_dpkthdr	(int, uint16_t, uint32_t);
 
 ssize_t	read_dump	(int, void*, size_t);
 ssize_t	write_dump	(int, void*, size_t);

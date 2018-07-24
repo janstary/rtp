@@ -166,7 +166,7 @@ rtpopen(const char *path, int flags)
 			warn("REUSEADDR");
 		/* TODO: SO_SNDTIMEO SO_RCVTIMEO SO_TIMESTAMP */
 		addr = (struct sockaddr_in*) res->ai_addr;
-		addr->sin_port = htons(port);
+		addr->sin_port = port;
 		if (islocal(addr)) {
 			/* If the local socket is an input, we will read on it;
 			 * if it's an output, we want to receive a message first
@@ -247,24 +247,41 @@ bad:
 }
 
 /* Compute the time interval from old to new timeval.
- * Return the difference in usec, or 0 if new is older. */
+ * Return the difference in usec, or 0 for error.
+ * This is used to time outgoing packets,
+ * so the 0 means "send immediately". */
 uint32_t
-tvdiff(struct timeval old, struct timeval new)
+tvdiff(struct timeval *old, struct timeval *new)
 {
 	uint32_t usec;
-	if ((old.tv_sec > new.tv_sec)
-	|| ((old.tv_sec == new.tv_sec) && (old.tv_usec > new.tv_usec)))
+	if (old == NULL || new == NULL)
 		return 0;
-	usec = (new.tv_sec - old.tv_sec) * 1000000;
-	usec += new.tv_usec - old.tv_usec;
+	if ((old->tv_sec > new->tv_sec)
+	|| ((old->tv_sec == new->tv_sec) && (old->tv_usec > new->tv_usec)))
+		return 0;
+	usec = (new->tv_sec - old->tv_sec) * 1000000;
+	usec += new->tv_usec - old->tv_usec;
 	return usec;
+}
+
+/* Compute the offset since the given timeval.
+ * Return the difference in msec, or 0 for error. */
+uint32_t
+offset(struct timeval *since)
+{
+	struct timeval now;
+	if (gettimeofday(&now, NULL) == -1) {
+		warn("gettimeofday");
+		return 0;
+	}
+	return tvdiff(since, &now) / 1000;
 }
 
 /* The 'zero' describes the start of the dump,
  * the 'when' says (in msec since zero) when the next packet goes out.
  * Sleep for the appropriate time; then return 0, or -1 if interrupted. */
 int
-dumpsleep(struct timeval zero, uint32_t when)
+dumpsleep(struct timeval *zero, uint32_t when)
 {
 	struct timeval now;
 	struct timespec nap;
@@ -273,7 +290,7 @@ dumpsleep(struct timeval zero, uint32_t when)
 		warnx("gettimeofday");
 		return -1;
 	}
-	if ((diff = tvdiff(zero, now)) > usec) {
+	if ((diff = tvdiff(zero, &now)) > usec) {
 		/* we are late already */
 		return 0;
 	}
@@ -355,7 +372,7 @@ dump2net(int ifd, int ofd)
 			continue;
 		}
 		if ((dumptime
-		? dumpsleep(zero, pkt->msec)
+		? dumpsleep(&zero, pkt->msec)
 		: rtpsleep(&last, ntohl(rtp->ts))) == -1) {
 			warnx("packet timing failed");
 			error = -1;
@@ -455,13 +472,17 @@ net2dump(int ifd, int ofd)
 	ssize_t r, w;
 	int error = 0;
 	struct rtphdr *rtp;
-	struct dpkthdr hdr;
 	unsigned char buf[BUFLEN];
+	struct timeval start;
+	if (gettimeofday(&start, NULL) == -1) {
+		warn("gettimeofday");
+		return -1;
+	}
 	if (write_dumpline(ofd, addr) == -1) {
 		warnx("Error writing dump line");
 		return -1;
 	}
-	if (write_dumphdr(ofd, addr) == -1) {
+	if (write_dumphdr(ofd, addr, &start) == -1) {
 		warnx("Error writing dump header");
 		return -1;
 	}
@@ -476,11 +497,7 @@ net2dump(int ifd, int ofd)
 		}
 		if (verbose)
 			print_rtphdr(rtp);
-		hdr.plen = r;
-		hdr.dlen = r + DPKTHDRSIZE;
-		if (verbose)
-			print_dpkthdr(&hdr);
-		if ((w = write_dpkthdr(ofd, &hdr, DPKTHDRSIZE)) == -1) {
+		if ((w = write_dpkthdr(ofd, r, offset(&start))) == -1) {
 			warnx("Error writing dump packet header");
 			error = -1;
 			continue;
