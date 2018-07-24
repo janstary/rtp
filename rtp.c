@@ -313,6 +313,7 @@ rtpsleep(uint32_t *last, uint32_t next)
 	uint32_t diff;
 	struct timespec nap;
 	if (*last == 0) {
+		/* first packet */
 		*last = next;
 		return 0;
 	}
@@ -368,7 +369,7 @@ dump2net(int ifd, int ofd)
 			send these, because receiving zero size confuses the
 			reader, who considers that an end. But a RTCP packet
 			does not actualy have zero size. We need to properly
-			read the RTPC header, which we don't, yet. */
+			read the RTCP header, which we don't, yet. */
 			continue;
 		}
 		if ((dumptime
