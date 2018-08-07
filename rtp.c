@@ -32,12 +32,14 @@
 
 #include "format-dump.h"
 #include "format-rtp.h"
+#include "payload.h"
 
 #define BUFLEN 8192
 /* FIXME: This should be enough for each and every packet we read,
  * but we are still wrong: mind the buflen in the reading routines. */
 
 extern const char* __progname;
+extern struct pt payload[];
 struct ifaddrs *ifaces = NULL;
 struct sockaddr_in *addr;
 
@@ -328,6 +330,7 @@ rtpsleep(uint32_t *last, uint32_t next)
 	* We need to align the first packet with wallclock and then tweak
 	* these diffs by what has alread elapsed. */
 	step = (1.0 * diff) / 8000;
+	/* FIXME: use struct payload for the rate */
 	/* FIXME: properly compute the diff using the payload type.
 	 * A typical audio application uses a 8000 kHz rate
 	 * and the RTP timestamp increments by 160. This means
