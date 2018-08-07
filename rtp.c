@@ -286,6 +286,7 @@ dumpsleep(struct timeval *zero, uint32_t when)
 	struct timeval now;
 	struct timespec nap;
 	uint32_t diff, usec = when * 1000;
+	/* some time has already elapsed */
 	if (gettimeofday(&now, NULL) == -1) {
 		warnx("gettimeofday");
 		return -1;
@@ -298,18 +299,20 @@ dumpsleep(struct timeval *zero, uint32_t when)
 	nap.tv_sec = usec / 1000000;
 	nap.tv_nsec = (usec % 1000000) * 1000;
 	if (nanosleep(&nap, NULL) != 0) {
-		warnx("packet timing interrupted");
+		warn("nanosleep");
 		return -1;
 	}
 	return 0;
 }
 
 /* The 'last' is a timestamp of the last RTP packet we sent,
- * and 'next' is a timestamp of the next one. Sleep for the appropriate time.
+ * and 'next' is a timestamp of the next one.
+ * Sleep for the appropriate time.
  * Return 0 for success, -1 for error. */
 int
 rtpsleep(uint32_t *last, uint32_t next)
 {
+	double step;
 	uint32_t diff;
 	struct timespec nap;
 	if (*last == 0) {
@@ -321,12 +324,19 @@ rtpsleep(uint32_t *last, uint32_t next)
 		warnx("packets out of timestamp order: %u > %u", *last, next);
 		return -1;
 	}
-	diff = next - *last;
-	nap.tv_sec = diff / 1000000;
-	nap.tv_nsec = (diff % 1000000) * 1000;
+	diff = next - *last; /* FIXME: minus time already elapsed since last.
+	* We need to align the first packet with wallclock and then tweak
+	* these diffs by what has alread elapsed. */
+	step = (1.0 * diff) / 8000;
+	/* FIXME: properly compute the diff using the payload type.
+	 * A typical audio application uses a 8000 kHz rate
+	 * and the RTP timestamp increments by 160. This means
+	 * 160/8000 = 1/50 of a second = 20 ms of a difference. */
+	nap.tv_sec = step;
+	nap.tv_nsec = (step - nap.tv_sec) * 1000000000;
 	*last = next;
 	if (nanosleep(&nap, NULL) != 0) {
-		warnx("packet timing interrupted");
+		warn("nanosleep");
 		return -1;
 	}
 	return 0;
@@ -375,6 +385,11 @@ dump2net(int ifd, int ofd)
 		if ((dumptime
 		? dumpsleep(&zero, pkt->msec)
 		: rtpsleep(&last, ntohl(rtp->ts))) == -1) {
+		/* FIXME: notice how we use pkt->msec, because that's
+		 * already converted to the local byte order by
+		 * read_dump() -> read_dpkthdr(); but we convert the rtp->ts,
+		 * because we have not properly parsed the RTP packet;
+		 * which we have to, e.g. to change the timestamp. */
 			warnx("packet timing failed");
 			error = -1;
 			continue;
