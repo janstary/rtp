@@ -1,6 +1,5 @@
 format-dump.o: format-dump.c format-dump.h config.h
 format-rtp.o: format-rtp.c format-rtp.h config.h
-payload.o: payload.c payload.h config.h
 rtp.o: rtp.c config.h
 
 compat-err.o: compat-err.c config.h

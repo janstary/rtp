@@ -32,14 +32,12 @@
 
 #include "format-dump.h"
 #include "format-rtp.h"
-#include "payload.h"
 
 #define BUFLEN 8192
 /* FIXME: This should be enough for each and every packet we read,
  * but we are still wrong: mind the buflen in the reading routines. */
 
 extern const char* __progname;
-extern struct pt payload[];
 struct ifaddrs *ifaces = NULL;
 struct sockaddr_in *addr;
 
@@ -63,6 +61,50 @@ struct format {
 	{ FORMAT_NONE,	NULL,	NULL	}
 };
 #define NUMFORMATS (sizeof(formats) / sizeof(struct format))
+
+struct pt {
+	const char*	enc;  /* encoding name */
+	uint32_t	rate; /* sampling rate (audio) or clock rate (video) */
+	uint8_t		ch;   /* audio channels; 0 for video */
+} payload[] = {
+	{ "PCMU",	 8000,	1 },
+	{ "reserved",	    0,	0 },
+	{ "reserved",	    0,	0 },
+	{ "GSM ",	 8000,	1 },
+	{ "G723",	 8000,	1 },
+	{ "DVI4",	 8000,	1 },
+	{ "DVI4",	16000,	1 },
+	{ "LPC ",	 8000,	1 },
+	{ "PCMA",	 8000,	1 },
+	{ "G722",	 8000,	1 },
+	{ "L16 ",	44100,	2 },
+	{ "L16 ",	44100,	1 },
+	{ "QCELP",	 8000,	1 },
+	{ "CN  ",	 8000,	0 },
+	{ "MPA ",	90000,	0 },
+	{ "G728",	 8000,	1 },
+	{ "DVI4",	11025,	1 },
+	{ "DVI4",	22050,	1 },
+	{ "G729",	 8000,	1 },
+	{ "reserved",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "CelB",	90000,	0 },
+	{ "JPEG",	90000,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "nv  ",	90000,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "unassigned",	    0,	0 },
+	{ "H261",	90000,	0 },
+	{ "MPV ",	90000,	0 },
+	{ "MP2T",	90000,	0 },
+	{ "H263",	90000,	0 },
+	{ NULL,		    0,	0 }
+};
+#define NUMPAYLOAD ((sizeof(payload)) / (sizeof(struct pt)))
 
 static int remote = 0;
 static int dumptime = 0;
@@ -307,12 +349,16 @@ dumpsleep(struct timeval *zero, uint32_t when)
 	return 0;
 }
 
-/* The 'last' is a timestamp of the last RTP packet we sent,
- * and 'next' is a timestamp of the next one.
- * Sleep for the appropriate time.
+/* The meaning of the rtp timestamp is payload dependent.
+ * Use the global paylod type table to compute the appropriate
+ * time to sleep, where 'last' is the rtp timestamp of the last
+ * rtp packet we sent, and 'next' is the timestamp of the next.
+ * For example, a typical audio application uses a 8000 kHz rate
+ * and the RTP timestamp increments by 160. This means a step of
+ * 160/8000 = 1/50 of a second = 20 ms.
  * Return 0 for success, -1 for error. */
 int
-rtpsleep(uint32_t *last, uint32_t next)
+rtpsleep(uint32_t *last, uint32_t next, uint8_t pt)
 {
 	double step;
 	uint32_t diff;
@@ -326,18 +372,19 @@ rtpsleep(uint32_t *last, uint32_t next)
 		warnx("packets out of timestamp order: %u > %u", *last, next);
 		return -1;
 	}
-	diff = next - *last; /* FIXME: minus time already elapsed since last.
-	* We need to align the first packet with wallclock and then tweak
-	* these diffs by what has alread elapsed. */
-	step = (1.0 * diff) / 8000;
-	/* FIXME: use struct payload for the rate */
-	/* FIXME: properly compute the diff using the payload type.
-	 * A typical audio application uses a 8000 kHz rate
-	 * and the RTP timestamp increments by 160. This means
-	 * 160/8000 = 1/50 of a second = 20 ms of a difference. */
+	if (pt > NUMPAYLOAD) {
+		warnx("unknown payload %u: sending immediately", pt);
+		return -1;
+	}
+	if (payload[pt].rate == 0) {
+		warnx("unknown rate for '%s': sending now", payload[pt].enc);
+		return -1;
+	}
+	diff = next - *last; /* FIXME: minus time already elapsed. */
+	*last = next;
+	step = (1.0 * diff) / payload[pt].rate;
 	nap.tv_sec = step;
 	nap.tv_nsec = (step - nap.tv_sec) * 1000000000;
-	*last = next;
 	if (nanosleep(&nap, NULL) != 0) {
 		warn("nanosleep");
 		return -1;
@@ -387,7 +434,7 @@ dump2net(int ifd, int ofd)
 		}
 		if ((dumptime
 		? dumpsleep(&zero, pkt->msec)
-		: rtpsleep(&last, ntohl(rtp->ts))) == -1) {
+		: rtpsleep(&last, ntohl(rtp->ts), rtp->pt)) == -1) {
 		/* FIXME: notice how we use pkt->msec, because that's
 		 * already converted to the local byte order by
 		 * read_dump() -> read_dpkthdr(); but we convert the rtp->ts,

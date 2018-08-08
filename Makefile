@@ -20,16 +20,13 @@ MAN1 =	rtp.1
 
 OBJS =	rtp.o		\
 	format-dump.o	\
-	format-rtp.o	\
-	payload.o
+	format-rtp.o
 
 SRCS =	rtp.c		\
 	format-dump.c	\
 	format-dump.h	\
 	format-rtp.c	\
-	format-rtp.h	\
-	payload.c	\
-	payload.h
+	format-rtp.h
 
 HAVE_SRCS = \
 	have-bigendian.c	\
