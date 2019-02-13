@@ -114,6 +114,23 @@ option),
 dlen will be shorter than plen.
 The RTP header is always there.
 All fields are stored in the network byte order.
+.It Cm pcap
+The ubiquituous format of
+.Xr libpcap 3 .
+This format can only be used as an input; a
+.Cm pcap
+output can be created with
+.Xr tcpdump 1
+by sniffing an interface where the RTP traffic happens.
+The main difference to the
+.Cm dump
+format is that a
+.Cm pcap
+input can contain more than one RTP stream.
+The output must be to a file;
+.Nm
+will create one output file for each stream found in the input.
+.\" FIXME suitably named
 .It Cm net
 The actual RTP packets being sent and received.
 This is the only format used with network connections.
@@ -131,6 +148,9 @@ For regular files, the format will be guessed from the file name suffix:
 .Dq rtp
 for
 .Cm dump ,
+.Dq pcap
+for
+.Cm pcap ,
 .Dq raw
 for
 .Cm raw ,
@@ -168,11 +188,11 @@ Read from a dump file, save the raw audio:
 .Pp
 .Dl $ rtp session.rtp session.raw
 .Pp
-Read from a dump file, stream rtp to whoever connects:
+Read from a dump file, stream to whoever connects:
 .Pp
 .Dl $ rtp session.rtp localhost:1234
 .Pp
-Read from a dump file, stream rtp to a remote location:
+Read from a dump file, stream to a remote location:
 .Pp
 .Dl $ rtp session.rtp far.away.com:1234
 .Pp
@@ -264,7 +284,7 @@ Reading from an address and streaming to another address is rtptrans.
 .An Jan Starý Aq Mt hans@stare.cz
 .Sh BUGS
 By convention, RTP traffic happens on an even port number,
-and the corresponding RTCP happens on the odd port+1.
+and the corresponding RTCP traffic happens on the odd port+1.
 .Nm
 ignores that convention, only reads the specified
 .Ar port ,
